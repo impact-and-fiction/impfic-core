@@ -20,6 +20,7 @@ class RBN:
         self.terms = read_rbn(rbn_file)
         self.term_info = {}
         self.pos_terms = defaultdict(list)
+        self._index_terms()
 
     def _index_terms(self):
         for term in self.terms:
@@ -39,8 +40,11 @@ class RBN:
 
     def get_sem_type(self, sem_type: str, pos_tag: str = None):
         if pos_tag:
-            if pos_tag not in self.pos_terms:
-                raise KeyError(f'unknown pos tag {pos_tag}')
-            return [term for term in self.pos_terms[pos_tag] if term['sem-type'] == sem_type]
+            return [term for term in self.get_pos_terms[pos_tag] if term['sem-type'] == sem_type]
         else:
             return [term for term in self.terms if term['sem-type'] == sem_type]
+
+    def get_pos_terms(self, pos_tag: str):
+        if pos_tag not in self.pos_terms:
+            raise KeyError(f'unknown pos tag {pos_tag}')
+        return [term for term in self.pos_terms[pos_tag]]
