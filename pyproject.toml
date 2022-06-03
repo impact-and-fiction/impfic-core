@@ -44,7 +44,6 @@ push = true
 [tool.bumpver.file_patterns]
 "pyproject.toml" = [
     'version = "{version}"',
-    'current_version = "{version}"',
 ]
 "impfic_core/__init__.py" = [
     '__version__ = "{version}"'
