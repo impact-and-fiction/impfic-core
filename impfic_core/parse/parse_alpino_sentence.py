@@ -387,6 +387,7 @@ def get_main_verb(node: Dict[str, any]) -> Union[None, Dict[str, any]]:
     # if main_verb:
     #     print('MAIN VERB NODE:', main_verb['@id'], main_verb['@rel'],
     #           main_verb['@cat'] if '@cat' in main_verb else main_verb['@word'])
+
     if main_verb is not None and is_verbal(main_verb):
         node = main_verb
         main_verb = None

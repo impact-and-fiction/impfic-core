@@ -1,6 +1,6 @@
 import unittest
 
-from resources.rbn import RBN
+from impfic_core.resources.rbn import RBN
 
 
 class RBNTest(unittest.TestCase):

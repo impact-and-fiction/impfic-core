@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "impfic-core"
-version = "0.1.1-alpha.0"
+version = "0.1.0"
 description = "Utility functions for the Impact and Fiction project"
 authors = ["Marijn Koolen <marijn.koolen@huygens.knaw.nl>"]
 readme = "README.md"
@@ -15,12 +15,12 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
 ]
-packages = [{ include = "impfic-core" }]
+packages = [{ include = "impfic_core" }]
 
 [tool.poetry.dependencies]
 python = "^3.8,<3.11"
-pandas = ">=1.2.2"
-numpy = "^1.22.3"
+pandas = "*"
+numpy = "*"
 
 [tool.poetry.dev-dependencies]
 
@@ -33,3 +33,20 @@ version = 'poetry_scripts:version'
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+[tool.bumpver]
+current_version = "0.1.0"
+version_pattern = "MAJOR.MINOR.PATCH"
+commit_message = "bump version {old_version} -> {new_version}"
+commit = true
+tag = true
+push = true
+
+[tool.bumpver.file_patterns]
+"pyproject.toml" = [
+    'version = "{version}"',
+    'current_version = "{version}"',
+]
+"impfic_core/__init__.py" = [
+    '__version__ = "{version}"'
+]
+
