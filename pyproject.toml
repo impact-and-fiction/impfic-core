@@ -19,8 +19,8 @@ packages = [{ include = "impfic_core" }]
 
 [tool.poetry.dependencies]
 python = "^3.8,<3.11"
-pandas = "*"
 numpy = "*"
+pandas = "*"
 
 [tool.poetry.dev-dependencies]
 
@@ -33,7 +33,9 @@ version = 'poetry_scripts:version'
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
 [tool.bumpver]
+current_version = "0.1.1"
 version_pattern = "MAJOR.MINOR.PATCH"
 commit_message = "bump version {old_version} -> {new_version}"
 commit = true
