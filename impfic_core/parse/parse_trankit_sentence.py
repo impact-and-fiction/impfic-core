@@ -21,7 +21,9 @@ def get_head_verb_id(head_id: int, tokens: Dict[int, Dict[str, any]]) -> int:
     if head_id == 0:
         return 0
     head_token = tokens[head_id]
-    if head_token['upos'] in VERB_POS and head_token['deprel'] != 'xcomp':
+    if 'upos' in head_token and 'deprel' not in head_token:
+        print(head_token)
+    if head_token['upos'] in VERB_POS and 'deprel' in head_token and head_token['deprel'] != 'xcomp':
         return head_token['id']
     else:
         return get_head_verb_id(head_token['head'], tokens)
@@ -34,7 +36,8 @@ def group_tokens_by_head_verb(tokens: Dict[int, Dict[str, any]]) -> Dict[int, Li
     for head_id in head_group:
         head_verb_id = get_head_verb_id(head_id, tokens)
         for token in head_group[head_id]:
-            if token['id'] in head_group and token['upos'] in VERB_POS and token['deprel'] != 'xcomp':
+            if token['id'] in head_group and token['upos'] in VERB_POS \
+                    and 'deprel' in token and token['deprel'] != 'xcomp':
                 if token not in head_verb_group[token['id']]:
                     head_verb_group[token['id']].append(token)
             elif token not in head_verb_group[head_verb_id]:
@@ -69,7 +72,7 @@ def get_pronoun_info(pron_token: Dict[str, any]) -> Dict[str, any]:
     # six_fields 'pt', 'vw_type', 'pos', 'case', 'position', 'inflection'
     xpos_fields = ['pt', 'vw_type', 'pos', 'case', 'status', 'person', 'card']
     xpos_values = pron_token['xpos'].split('|')
-    pron_info = {field: xpos_values[fi] for fi, field in enumerate(xpos_fields)}
+    pron_info = {field: xpos_values[fi] if fi in xpos_fields else None for fi, field in enumerate(xpos_fields)}
     if pron_info['vw_type'] == 'pers':
         pron_info['genus'] = xpos_values[-1]
     for part in pron_token['feats'].split('|'):
@@ -80,17 +83,39 @@ def get_pronoun_info(pron_token: Dict[str, any]) -> Dict[str, any]:
     return pron_info
 
 
+def get_pronouns(sent: Dict[str, any]) -> List[Dict[str, any]]:
+    pronouns = []
+    for token in sent['tokens']:
+        if is_person_pronoun(token):
+            try:
+                pron_info = get_pronoun_info(token)
+            except IndexError:
+                print(token)
+                raise
+            pronouns.append(pron_info)
+    return pronouns
+
+
+def get_verbs(sent: Dict[str, any]) -> List[Dict[str, any]]:
+    verbs = []
+    for token in sent['tokens']:
+        if token['upos'] in VERB_POS:
+            verb_info = get_verb_info(token)
+            verbs.append(verb_info)
+    return verbs
+
+
 def get_verb_info(verb_token: Dict[str, any]) -> Dict[str, any]:
     xpos_fields = ['pt', 'w_form', 'pv_time', 'card']
     xpos_values = verb_token['xpos'].split('|')
-    verb_info = {field: xpos_values[fi] for fi, field in enumerate(xpos_fields)}
+    verb_info = {field: xpos_values[fi] if fi in xpos_fields else None for fi, field in enumerate(xpos_fields)}
     if 'feats' in verb_token:
         for part in verb_token['feats'].split('|'):
             key, value = part.split('=')
             verb_info[key.lower()] = value.lower()
     verb_info['word'] = verb_token['text']
     verb_info['lemma'] = verb_token['lemma']
-    verb_info['verb_word_index'] = verb_token['id']
+    verb_info['word_index'] = verb_token['id']
     return verb_info
 
 
