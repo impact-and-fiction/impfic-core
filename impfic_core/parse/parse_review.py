@@ -9,6 +9,36 @@ from impfic_core.secrets import salt as secret_salt
 QUOTE_PATTERN = r'''(["'].*?["'])'''
 
 
+USER_HASH_MAP_FILE = '../data/reviews/user_names/user_hash_map.json'
+USER_ID_MAP_FILE = '../data/reviews/user_names/user_id_map.json'
+
+
+def write_user_maps(user_hash_map, user_id_map, user_hash_map_file: str = None,
+                    user_id_map_file: str = None):
+    if user_hash_map_file is None:
+        user_hash_map_file = USER_HASH_MAP_FILE
+    if user_id_map_file is None:
+        user_id_map_file = USER_ID_MAP_FILE
+    with open(user_hash_map_file, 'wt') as fh:
+        json.dump(user_hash_map, fh)
+
+    with open(user_id_map_file, 'wt') as fh:
+        json.dump(user_id_map, fh)
+
+
+def read_user_maps(user_hash_map_file: str = None, user_id_map_file: str = None):
+    if user_hash_map_file is None:
+        user_hash_map_file = USER_HASH_MAP_FILE
+    if user_id_map_file is None:
+        user_id_map_file = USER_ID_MAP_FILE
+    with open(user_hash_map_file, 'rt') as fh:
+        user_hash_map = json.load(fh)
+
+    with open(user_id_map_file, 'rt') as fh:
+        user_id_map = json.load(fh)
+    return user_hash_map, user_id_map
+
+
 def hash_reviewer_id(reviewer_id: str, collection_id: str = None,
                      collection_prefix: str = '__', salt: str = None):
     if salt is None:
