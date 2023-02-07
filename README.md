@@ -13,6 +13,9 @@ Core code base for common functionalities
 pip install impfic-core
 ```
 
+For review anonymisation you need a salt hash in a file called `impfic_core/secrets.py`. The repository doesn't contain this file to ensure other cannot recreate the user ID mapping. 
+An example file is available as `impfic_core/secrets_example.py`. Copy this file to `impfic_core/secrets.py` and update the salt hash to do your own user ID mapping.
+
 ## Usage
 
 To use utilities for external resources such as the RBN, you need to point to your copy of those resources 
