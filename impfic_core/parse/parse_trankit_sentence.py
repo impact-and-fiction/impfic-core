@@ -2,6 +2,10 @@ from typing import Dict, Generator, List, Tuple
 from collections import defaultdict
 
 
+# HEAD_VERB_DEPRELS = {'xcomp', 'cc', 'conj', 'nsubj:pass'}
+NON_HEAD_VERB_DEPRELS = {'xcomp', 'nsubj:pass'}
+
+
 def group_tokens_by_head(tokens: Dict[int, Dict[str, any]]) -> Dict[int, List[Dict[str, any]]]:
     """Group a list of tokens by their head tokens."""
     head_group = defaultdict(list)
@@ -23,7 +27,8 @@ def get_head_verb_id(head_id: int, tokens: Dict[int, Dict[str, any]]) -> int:
     head_token = tokens[head_id]
     if 'upos' in head_token and 'deprel' not in head_token:
         print(head_token)
-    if head_token['upos'] in VERB_POS and 'deprel' in head_token and head_token['deprel'] != 'xcomp':
+    if head_token['upos'] in VERB_POS and 'deprel' in head_token \
+            and head_token['deprel'] not in NON_HEAD_VERB_DEPRELS:
         return head_token['id']
     else:
         return get_head_verb_id(head_token['head'], tokens)
@@ -37,8 +42,9 @@ def group_tokens_by_head_verb(tokens: Dict[int, Dict[str, any]]) -> Dict[int, Li
         head_verb_id = get_head_verb_id(head_id, tokens)
         for token in head_group[head_id]:
             if token['id'] in head_group and token['upos'] in VERB_POS \
-                    and 'deprel' in token and token['deprel'] != 'xcomp':
+                    and 'deprel' in token and token['deprel'] not in NON_HEAD_VERB_DEPRELS:
                 if token not in head_verb_group[token['id']]:
+                    # print('HEAD VERB:', token['id'], token['text'], token['deprel'])
                     head_verb_group[token['id']].append(token)
             elif token not in head_verb_group[head_verb_id]:
                 head_verb_group[head_verb_id].append(token)
@@ -71,6 +77,7 @@ def get_pronoun_info(pron_token: Dict[str, any]) -> Dict[str, any]:
     # seven_fields 'pt', 'vw_type', 'pos', 'case', 'status', 'person', 'card'
     # six_fields 'pt', 'vw_type', 'pos', 'case', 'position', 'inflection'
     xpos_fields = ['pt', 'vw_type', 'pos', 'case', 'status', 'person', 'card']
+    # xpos_fields = ['Person', 'Poss', 'PronType', 'Case']
     xpos_values = pron_token['xpos'].split('|')
     pron_info = {field: xpos_values[fi] if fi in xpos_fields else None for fi, field in enumerate(xpos_fields)}
     if pron_info['vw_type'] == 'pers':
@@ -107,12 +114,14 @@ def get_verbs(sent: Dict[str, any]) -> List[Dict[str, any]]:
 
 def get_verb_info(verb_token: Dict[str, any]) -> Dict[str, any]:
     xpos_fields = ['pt', 'w_form', 'pv_time', 'card']
+    # xpos_fields = ['VerbForm', 'Number', 'Tense']
     xpos_values = verb_token['xpos'].split('|')
     verb_info = {field: xpos_values[fi] if fi in xpos_fields else None for fi, field in enumerate(xpos_fields)}
     if 'feats' in verb_token:
         for part in verb_token['feats'].split('|'):
             key, value = part.split('=')
             verb_info[key.lower()] = value.lower()
+    verb_info['pos'] = verb_token['upos']
     verb_info['word'] = verb_token['text']
     verb_info['lemma'] = verb_token['lemma']
     verb_info['word_index'] = verb_token['id']
@@ -127,6 +136,37 @@ def is_person_pronoun(token: Dict[str, any]) -> bool:
     if 'PronType=Prs' not in token['feats']:
         return False
     return True
+
+
+def prep_tokens(sent: Dict[str, any]):
+    word_field = 'tokens' if 'tokens' in sent else 'words'
+    return {token['id']: token for token in sent[word_field]}
+
+
+def get_verb_clusters(sent: Dict[str, any]):
+    tokens = prep_tokens(sent)
+    head_group = group_tokens_by_head_verb(tokens)
+    verb_clusters = []
+    for head_id in head_group:
+        verbs = [token for token in head_group[head_id] if token['upos'] in VERB_POS]
+        if len(verbs) > 0:
+            verb_clusters.append(verbs)
+    return verb_clusters
+
+
+def get_subject_object_verb_clusters(sent: Dict[str, any]):
+    tokens = prep_tokens(sent)
+    head_group = group_tokens_by_head_verb(tokens)
+    clusters = []
+    for head_id in head_group:
+        cluster = {
+            'subject': [token for token in head_group[head_id] if 'deprel' in token and token['deprel'] in SUBS],
+            'object': [token for token in head_group[head_id] if 'deprel' in token and token['deprel'] in OBJS],
+            'verbs': [token for token in head_group[head_id] if token['upos'] in VERB_POS]
+        }
+        if len(cluster['verbs']) > 0:
+            clusters.append(cluster)
+    return clusters
 
 
 def get_pronoun_verb_pairs(sent: Dict[str, any]) -> Generator[Tuple[Dict[str, any], Dict[str, any]], None, None]:
@@ -177,6 +217,8 @@ rel_tags = [
 
 clause_rel = {'advcl'}
 VERB_POS = {'VERB', 'AUX'}
+SUBS = {'nsubj', 'nsubj:pass', 'csubj'}
+OBJS = {'obj', 'iobj', 'obl:agent'}
 SUB_OBJS = {'nsubj', 'nsubj:pass', 'csubj', 'obj', 'iobj', 'obl:agent'}
 
 headers = [

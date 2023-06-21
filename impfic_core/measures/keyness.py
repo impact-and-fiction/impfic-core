@@ -2,18 +2,77 @@ from typing import Dict, Iterable, Set, Tuple, Union
 from collections import Counter
 
 import numpy as np
+import pandas as pd
 
 
 _SMALL = 1e-20
 
 
+def get_group_keyness(group_freq, group_totals, groups=None):
+    group_keyness = pd.DataFrame()
+    if groups is None:
+        groups = group_freq.columns
+    for group in groups:
+        group_keyness[group] = group_freq.apply(lambda x: compute_log_likelihood_from_row(x, group, group_totals),
+                                                axis=1)
+    return group_keyness
+
+
+def calculate_group_totals(reviews, group_col, count_col):
+    group_totals = get_totals_from_df(reviews, group_col, count_col)
+    group_totals.loc['Total'] = [group_totals.target_freq.sum(), 0]
+    group_totals['total_freq'] = group_totals.sum(axis=1)
+    return group_totals
+
+
+def calculate_group_freqs(occurrences, group_col, count_col):
+    group_occurrences = occurrences.groupby([group_col])[count_col].value_counts()
+    group_occurrences = group_occurrences.unstack().T.fillna(0.0)
+    group_occurrences['Total'] = group_occurrences.sum(axis=1)
+    return group_occurrences
+
+
+def calculate_percentage_diff(group_frac, groups):
+    group_frac[groups].div(group_frac.Total, axis=0)
+    return (group_frac[groups].T - group_frac.Total).T.div(group_frac.Total, axis=0) * 100
+
+
+def get_percentage_diff(reviews, occurrences, group_col, total_count_col, occurrence_count_col):
+    # determine groups
+    groups = list(reviews[group_col].unique())
+    # add group totals
+    group_totals = calculate_group_totals(reviews, group_col, total_count_col)
+    # calculate group frequencies
+    group_occurrences = calculate_group_freqs(occurrences, group_col, occurrence_count_col)
+    # calculate group fractions
+    group_occurrences_frac = group_occurrences / group_totals.target_freq
+
+    # calculate group differences
+    return calculate_percentage_diff(group_occurrences_frac, groups)
+
+
 def get_totals_from_df(df, category_column, freq_column):
     totals = df.groupby(category_column)[freq_column].sum()
     totals = totals.reset_index().rename(columns={freq_column: 'target_freq'})
-    N_Total = totals.target_freq.sum()
-    totals['ref_freq'] = N_Total - totals.target_freq
+    n_total = totals.target_freq.sum()
+    totals['ref_freq'] = n_total - totals.target_freq
     totals = totals.set_index(category_column)
     return totals
+
+
+def get_observed_from_columns(row, target_col, ref_col, totals):
+    t_target = row[target_col]
+    # print('t_target:', t_target)
+    t_ref = row[ref_col]
+    # print('t_ref:', t_ref)
+    # print('total target:', totals.loc[target_col])
+    nt_target = totals.loc[target_col] - t_target
+    nt_ref = totals.loc[target_col] - t_ref
+    observed = np.array([
+        [t_target, t_ref],
+        [nt_target, nt_ref]
+    ])
+    return observed
 
 
 def get_observed_from_row(row, source, totals):
@@ -66,6 +125,14 @@ def compute_expected(observed: np.array) -> np.array:
         ]
     ])
     return expected
+
+
+def compute_log_likelihood_from_columns(row, target_col, ref_col, totals):
+    observed = get_observed_from_columns(row, target_col, ref_col, totals)
+    # print(observed)
+    ll, sign = compute_log_likelihood_from_observed(observed)
+    return ll
+    # return ll if sign == 'more' else -ll
 
 
 def compute_log_likelihood_from_row(row, source, totals):
