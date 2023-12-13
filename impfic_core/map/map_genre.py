@@ -26,7 +26,9 @@ NUR_MAPPINGS = {
     283: "Children_fiction",
     284: "Young_adult",
     285: "Young_adult",
-    343: "Romanticism"
+    342: "Historical_fiction",
+    343: "Romanticism",
+    344: "Regional_fiction"
 }
 
 genre_order = []
@@ -49,7 +51,7 @@ def nur_genre(nur) -> str:
         return np.nan
     elif nur in NUR_MAPPINGS:
         return NUR_MAPPINGS[nur]
-    elif 280 <= nur < 341:
+    elif 280 <= nur <= 350:
         return "Other fiction"
     else:
         return "Non-fiction"
@@ -58,6 +60,8 @@ def nur_genre(nur) -> str:
 def map_list(value):
     if isinstance(value, str):
         return ast.literal_eval(value)
+    elif isinstance(value, list):
+        return value
     if pd.isna(value):
         return value
     print(value, pd.isna(value))
@@ -70,7 +74,7 @@ def map_genre(nurs):
         for nur in NUR_MAPPINGS:
             if str(nur) in nurs:
                 return NUR_MAPPINGS[nur]
-        if any([280 <= int(nur) < 341 for nur in nurs]):
+        if any([280 <= int(nur) <= 350 for nur in nurs]):
             return "Other fiction"
         else:
             return "Non-fiction"

@@ -67,7 +67,9 @@ def get_observed_from_columns(row, target_col, ref_col, totals):
     # print('t_ref:', t_ref)
     # print('total target:', totals.loc[target_col])
     nt_target = totals.loc[target_col] - t_target
-    nt_ref = totals.loc[target_col] - t_ref
+    nt_ref = totals.loc[ref_col] - t_ref
+    # print('nt_target:', nt_target)
+    # print('nt_ref:', nt_ref)
     observed = np.array([
         [t_target, t_ref],
         [nt_target, nt_ref]

@@ -105,14 +105,17 @@ def get_pronouns(sent: Dict[str, any]) -> List[Dict[str, any]]:
 
 def get_verbs(sent: Dict[str, any]) -> List[Dict[str, any]]:
     verbs = []
-    for token in sent['tokens']:
-        if token['upos'] in VERB_POS:
-            verb_info = get_verb_info(token)
-            verbs.append(verb_info)
+    tokens = prep_tokens(sent)
+    verb_groups = group_tokens_by_head_verb(tokens)
+    for head_id in verb_groups:
+        for token in verb_groups[head_id]:
+            if token['upos'] in VERB_POS:
+                verb_info = get_verb_info(token, head_id=head_id)
+                verbs.append(verb_info)
     return verbs
 
 
-def get_verb_info(verb_token: Dict[str, any]) -> Dict[str, any]:
+def get_verb_info(verb_token: Dict[str, any], head_id: int) -> Dict[str, any]:
     xpos_fields = ['pt', 'w_form', 'pv_time', 'card']
     # xpos_fields = ['VerbForm', 'Number', 'Tense']
     xpos_values = verb_token['xpos'].split('|')
@@ -125,6 +128,8 @@ def get_verb_info(verb_token: Dict[str, any]) -> Dict[str, any]:
     verb_info['word'] = verb_token['text']
     verb_info['lemma'] = verb_token['lemma']
     verb_info['word_index'] = verb_token['id']
+    verb_info['is_head_verb'] = verb_token['id'] == head_id
+    verb_info['head_verb_id'] = head_id
     return verb_info
 
 
@@ -189,7 +194,7 @@ def get_pronoun_verb_pairs(sent: Dict[str, any]) -> Generator[Tuple[Dict[str, an
                 continue
             for verb in verbs:
                 try:
-                    verb_info = get_verb_info(verb)
+                    verb_info = get_verb_info(verb, head_id)
                 except IndexError:
                     print('UNPARSEABLE VERB')
                     print(verb)
@@ -231,6 +236,7 @@ headers = [
     'verb_pt', 'verb_w_form', 'verb_pv_time', 'verb_card',
     'verb_number', 'verb_tense', 'verb_verbform', 'verb_word',
     'verb_lemma',
+    'is_head_verb', 'head_verb_id'
     # verb_foreign, verb_degree, verb_gender
 ]
 

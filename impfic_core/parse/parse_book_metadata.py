@@ -1,7 +1,11 @@
 import copy
+import re
+import datetime
 from collections import defaultdict
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Union
 
+
+CURRENT_YEAR = datetime.date.today().year
 
 def get_record_field_values(record: Dict[str, any], field: str) -> Dict[str, Set[str]]:
     dc_data = record['srw:recordData']['srw_dc:dc']
@@ -60,6 +64,30 @@ def get_record_isbns(record: Dict[str, any]) -> List[str]:
         if rec_id['@xsi:type'] == 'dcterms:ISBN':
             isbns.append(rec_id['#text'])
     return isbns
+
+
+def get_record_publication_year(record: Dict[str, any]) -> Union[int, None]:
+    if 'dc:date' not in record['srw:recordData']['srw_dc:dc']:
+        return None
+    else:
+        date = record['srw:recordData']['srw_dc:dc']['dc:date']
+        if re.match(r'^\d{4}$', date):
+            year = date
+        elif m := re.match(r'\[(\d{4})\]', date):
+            year = m.group(1)
+        elif m := re.match(r'.*(\d{4})$', date):
+            year = m.group(1)
+        elif m := re.match(r'.*(\d{4})\]$', date):
+            year = m.group(1)
+        elif m := re.match(r'^(\d{4})-\.\.\.$', date):
+            year = m.group(1)
+        else:
+            return None
+    if year.isdigit() and len(year) == 4:
+        year = int(year)
+    if 1500 <= year <= CURRENT_YEAR:
+        return year
+    return None
 
 
 def get_record_nurs(record: Dict[str, any]) -> List[int]:
