@@ -174,6 +174,3 @@ def map_id_to_genre(row, work_genre_map):
         if genre in genres:
             return genre
     return list(genres)[0]
-
-
-
