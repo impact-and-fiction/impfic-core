@@ -8,6 +8,12 @@ import numpy as np
 
 GENRE_VOCABS = ['nur', 'thema', 'bisac', 'brinkman', 'unesco']
 
+DTYPE = {
+    'record_id': str,
+    'brinkman': str,
+    'unesco': str
+}
+
 NUR_MAPPINGS = {
     300: "Literary_fiction",
     301: "Literary_fiction",
@@ -47,6 +53,8 @@ def read_genre_file(genre_file: str):
 
 
 def nur_genre(nur) -> str:
+    if isinstance(nur, str) and nur.isdigit():
+        nur = int(nur)
     if pd.isna(nur):
         return np.nan
     elif nur in NUR_MAPPINGS:
@@ -86,17 +94,13 @@ def map_genre(nurs):
 
 
 def make_work_genre_map():
-    genre_file = '../../data/book_metadata/work_isbn_genre.tsv.gz'
-
-    dtype = {
-        'record_id': str
-    }
+    genre_file = '../../data/book_metadata/work_isbn_title_genre.tsv.gz'
 
     genre_fields = [
         'nur', 'thema', 'bisac', 'brinkman', 'unesco'
     ]
 
-    work_genre = pd.read_csv(genre_file, sep='\t', compression='gzip', dtype=dtype)
+    work_genre = pd.read_csv(genre_file, sep='\t', compression='gzip', dtype=DTYPE)
     for genre_field in genre_fields:
         work_genre[genre_field] = work_genre[genre_field].apply(map_list)
     d = work_genre[['record_id', 'nur_genre']].to_dict()
@@ -107,7 +111,14 @@ def make_work_genre_map():
     return work_genre_map
 
 
-def read_work_genre_file(work_genre_file: str):
+def read_work_genre_file(work_genre_file: str, as_dataframe: bool = False):
+    if as_dataframe is True:
+        return pd.read_csv(work_genre_file, sep='\t', compression='gzip', dtype=DTYPE)
+    else:
+        return read_work_genre_file_generator(work_genre_file)
+
+
+def read_work_genre_file_generator(work_genre_file: str):
     with gzip.open(work_genre_file, 'rt') as fh:
         headers = next(fh).strip().split('\t')
         for line in fh:

@@ -63,7 +63,7 @@ class WorkMetadata:
 
     def __init__(self):
         self.work_graph = nx.Graph()
-        self.vocabs = set('nur')
+        self.vocabs = {'nur'}
 
     def add_record_nodes(self, record):
         isbns = meta_parse.get_record_isbns(record)
@@ -130,4 +130,5 @@ class WorkMetadata:
                 if vocab in self.work_graph.nodes[node_name]:
                     for subject in self.work_graph.nodes[node_name][vocab]:
                         component_subjects[vocab].add(subject)
+            break
         return component_subjects

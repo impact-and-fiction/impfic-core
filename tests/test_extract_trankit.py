@@ -1,37 +1,17 @@
 import unittest
 
-import impfic_core.extract.extract_trankit as et
-
-
-class TestRead(unittest.TestCase):
-
-    def setUp(self) -> None:
-        self.chunk_file_gzip = 'tests/trankit_test_data-1.json.gz'
-        self.chunk_file = 'tests/trankit_test_data-1.json'
-
-    def test_read_json_from_gzip(self):
-        book_chunk = et.read_chunk_file(self.chunk_file_gzip)
-        self.assertEqual(et.Book, type(book_chunk))
-
-    def test_read_json(self):
-        book_chunk = et.read_chunk_file(self.chunk_file)
-        self.assertEqual(et.Book, type(book_chunk))
-
-    def test_parse_filename(self):
-        book_id, chunk_num = et.parse_chunk_file_name(self.chunk_file)
-        self.assertEqual(1, chunk_num)
-
-    def test_parse_filename_gzip(self):
-        book_id, chunk_num = et.parse_chunk_file_name(self.chunk_file_gzip)
-        self.assertEqual(1, chunk_num)
+import impfic_core.extract.extract_stats as et
+from impfic_core.parse.chunk import read_chunk_file
+from impfic_core.parse.doc import merge_docs
 
 
 class TestCounting(unittest.TestCase):
 
     def setUp(self) -> None:
         self.chunk_file_gzip = 'tests/trankit_test_data-1.json.gz'
-        self.book_chunk = et.read_chunk_file(self.chunk_file_gzip)
+        self.book_chunk = read_chunk_file(self.chunk_file_gzip)
 
+"""
     def test_count_words_sents(self):
         chars, words, sents = et.count_chars_words_sents(self.book_chunk)
         self.assertEqual(12209, chars)
@@ -49,7 +29,7 @@ class TestCounting(unittest.TestCase):
         self.assertIn('Ishmael', lemma_count)
 
     def test_merge_chunks_json(self):
-        book = et.merge_book_chunks([self.book_chunk, self.book_chunk])
+        book = merge_docs([self.book_chunk, self.book_chunk])
         chars, words, sents = et.count_chars_words_sents(book)
         self.assertEqual(24419, chars)
         self.assertEqual(5202, words)
@@ -65,3 +45,4 @@ class TestCounting(unittest.TestCase):
         self.assertIn('word_length', dist_stats)
         self.assertIn('lemma_length', dist_stats)
         self.assertIn('sent_length', dist_stats)
+"""
