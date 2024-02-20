@@ -44,60 +44,123 @@ class Pattern:
 
     def get_head_verb_id(self, head_id: int, tokens: List[Token]) -> int:
         """Return the id of the head verb of a set of tokens for a given head id,
-        or 0 if the head id is 0."""
-        if head_id == 0:
-            return 0
-        head_token = tokens[head_id]
-        if self.is_head_verb(head_token):
-            return head_id
-        elif head_token.id == head_id and not self.is_verb(head_token):
+        or -1 if the head id is -1 (the root node)."""
+        if head_id == -1:
             return -1
+        # print(f'patterns.get_head_ver_id - head_id: {head_id}')
+        head_token = tokens[head_id]
+        # print(f'patterns.get_head_ver_id - head_token: {head_token}')
+        # print('patterns.get_head_ver_id - is_head_verb:', self.is_head_verb(head_token))
+        if self.is_head_verb(head_token):
+            # print('\thead_token is head_verb')
+            return head_id
+        elif head_token.id == head_id and self.is_verb(head_token):
+            # print('\ttoken head is token id AND thead_token is verb')
+            return head_id
+        # elif head_token.id == head_id and not self.is_verb(head_token):
+        #     print('\ttoken head is token id AND thead_token is not a verb')
+        #     return -1
         else:
+            # print('\trecursing to head of head_token')
             return self.get_head_verb_id(head_token.head, tokens)
 
-    def group_tokens_by_head_verb(self, tokens: List[Token]) -> Dict[int, List[Token]]:
+    def group_tokens_by_head_verb(self, tokens: List[Token],
+                                  copy_conj_subject: bool = False,
+                                  debug: int = 0) -> Dict[int, List[Token]]:
         """Group a list of tokens by their head verb tokens."""
         head_group = self.group_tokens_by_head(tokens)
         head_verb_group = defaultdict(list)
         if len(tokens) == 0:
             return head_verb_group
         for head_id in head_group:
+            if debug > 0:
+                print(f'group_tokens_by_head_verb - head_id: {head_id}')
             if head_id > len(tokens):
-                print('head_id:', head_id)
-                print('tokens:', tokens)
+                print('head_id larger than number of tokens:')
+                print('group_tokens_by_head_verb - head_id:', head_id)
+                print('group_tokens_by_head_verb - tokens:', tokens)
             head_verb_id = self.get_head_verb_id(head_id, tokens)
+            if debug > 0:
+                print(f'group_tokens_by_head_verb - head_verb_id: {head_verb_id}\n\n')
             if head_verb_id == -1:
                 # list of tokens has no verb
                 continue
             for token in head_group[head_id]:
+                if debug > 0:
+                    print(f'group_tokens_by_head_verb - head_id: {head_id}\thead_verb_id: {head_verb_id}\ttoken:', token.text, token.id, token.head)
+                    print('\t\ttoken (upos, deprel):', (token.upos, token.deprel))
+                    print('\t\ttoken.id in head_group:', token.id in head_group)
+                    print('\t\ttoken.id is_head_verb:', self.is_head_verb(token))
                 if token.id in head_group and self.is_head_verb(token):
                     if token not in head_verb_group[token.id]:
-                        # print('HEAD VERB:', token['id'], token['text'], token['deprel'])
+                        if debug > 0:
+                            print('HEAD VERB:', token.id, token.text, token.deprel)
                         head_verb_group[token.id].append(token)
                 elif token not in head_verb_group[head_verb_id]:
                     head_verb_group[head_verb_id].append(token)
-        head_verb_group = self.copy_subject_across_conjunctions(head_verb_group)
+                    if debug > 0:
+                        print(f'\tadding token: {token.id} {token.text} to head_verb_id {head_verb_id}')
+                else:
+                    if debug > 0:
+                        print('\tskipping token:', token)
+                    pass
+            for head_verb_id in sorted(head_verb_group):
+                if debug > 0:
+                    print('\n---------------------\n')
+                    print('content of head_verb_group with head_verb_id:', head_verb_id)
+                    for token in sorted(head_verb_group[head_verb_id], key=lambda t: t.id):
+                        print('\t', token.id, token.text)
+                    print('\n---------------------\n')
+        merge_into = {}
+        for head_verb_id in head_verb_group:
+            for other_head_verb_id in head_verb_group:
+                if head_verb_id == other_head_verb_id:
+                    continue
+                if head_verb_id in [token.id for token in head_verb_group[other_head_verb_id]]:
+                    if other_head_verb_id in merge_into:
+                        merge_into[head_verb_id] = merge_into[other_head_verb_id]
+                    else:
+                        merge_into[head_verb_id] = other_head_verb_id
+        for head_verb_id in merge_into:
+            new_head_verb_id = merge_into[head_verb_id]
+            merge_tokens = [token for token in head_verb_group[head_verb_id]
+                            if token not in head_verb_group[new_head_verb_id]]
+            head_verb_group[new_head_verb_id].extend(merge_tokens)
+            del head_verb_group[head_verb_id]
+        if copy_conj_subject is True:
+            head_verb_group = self.copy_subject_across_conjunctions(head_verb_group)
+        for head_verb_id in head_verb_group:
+            head_verb_group[head_verb_id].sort(key=lambda t: t.id)
         return head_verb_group
 
     def copy_subject_across_conjunctions(self, head_verb_group: Dict[int, List[Token]]) -> Dict[int, List[Token]]:
         for head_id in head_verb_group:
-            if head_id == 0:
+            if head_id == -1:
                 continue
             for t in head_verb_group[head_id]:
                 if t.deprel is None:
                     print('MISSING DEPREL:', t)
             subjs = [token for token in head_verb_group[head_id] if self.is_subject(token)]
             if len(subjs) == 0:
+                # print('\n-------------------')
+                # print('NO SUBJECTS')
                 head_token = [token for token in head_verb_group[head_id] if token.id == head_id][0]
+                if head_token.deprel != 'conj':
+                    # print('-------------------\n')
+                    continue
+                # print(f'\thead_token: {head_token}')
                 connected_group_id = head_token.head
+                # print(f'\tconnected_group_id: {connected_group_id}')
                 if connected_group_id not in head_verb_group:
                     continue
                 connected_subjs = [token for token in head_verb_group[connected_group_id] if self.is_subject(token)]
+                # print(f'\tconnected_subjs: {connected_subjs}')
                 head_verb_group[head_id].extend(connected_subjs)
+                # print('-------------------\n')
         return head_verb_group
 
     @staticmethod
-    def get_pronoun_info(self, pron_token: Token) -> Dict[str, any]:
+    def get_pronoun_info(pron_token: Token) -> Dict[str, any]:
         # person_fields = 'pt', 'vw_type', 'pos', 'case', 'status', 'person', 'card', 'genus'
         # seven_fields 'pt', 'vw_type', 'pos', 'case', 'status', 'person', 'card'
         # six_fields 'pt', 'vw_type', 'pos', 'case', 'position', 'inflection'
@@ -152,14 +215,14 @@ class Pattern:
             return False
         return token.feats['PronType'] == 'Prs'
 
-    def get_verb_clauses(self, sent: Sentence) -> List[List[Token]]:
+    def get_verb_clauses(self, sent: Sentence, copy_conj_subject: bool = False) -> List[List[Token]]:
         """Return all clausal units in the sentence that contain a head verb."""
-        head_group = self.group_tokens_by_head_verb(sent.tokens)
+        head_group = self.group_tokens_by_head_verb(sent.tokens, copy_conj_subject=copy_conj_subject)
         return [sorted(head_group[head_id], key=lambda t: t.id) for head_id in head_group]
 
-    def get_verb_clusters(self, sent: Sentence) -> List[List[Token]]:
+    def get_verb_clusters(self, sent: Sentence, copy_conj_subject: bool = False) -> List[List[Token]]:
         """Return all verbs per clausal unit in the sentence that contains a head verb."""
-        verb_clauses = self.get_verb_clauses(sent)
+        verb_clauses = self.get_verb_clauses(sent, copy_conj_subject=copy_conj_subject)
         verb_clusters = []
         for clause in verb_clauses:
             verbs = [token for token in clause if self.is_verb(token)]

@@ -188,7 +188,7 @@ def token_list_to_dict(tokens: Union[List[Dict[str, any]], Dict[str, any]]) -> D
         return {token['id']: token for token in tokens['tokens']}
     elif 'words' in tokens:
         return {token['id']: token for token in tokens['words']}
-    elif 1 in tokens:
+    elif isinstance(tokens, dict) and 1 in tokens:
         return tokens
     else:
         raise TypeError(f"invalid type for tokens, must be list of tokens of sentence dictionary.")

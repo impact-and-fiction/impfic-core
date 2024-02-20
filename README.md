@@ -13,8 +13,6 @@ Core code base for common functionalities
 pip install impfic-core
 ```
 
-For review anonymisation you need a salt hash in a file called `impfic_core/secrets.py`. The repository doesn't contain this file to ensure other cannot recreate the user ID mapping. 
-An example file is available as `impfic_core/secrets_example.py`. Copy this file to `impfic_core/secrets.py` and update the salt hash to do your own user ID mapping.
 
 ## Usage
 
@@ -71,6 +69,24 @@ Outputs:
 - `start`: the character offset of the start of the sentence within the document
 - `end`: the character offset of the end of the sentence within the document
 
+### Extracting Clausal Units
+
+```python
+sent = doc.sentences[5]
+for sent in doc.sentences:
+    print(sent.text)
+    clauses = pattern.get_verb_clauses(sent)
+    for clause in clauses:
+        print([t.text for t in clause])
+```
+
+```python
+With a philosophical flourish Cato throws himself upon his sword; I quietly take to the ship.
+clause: ['With', 'a', 'philosophical', 'flourish', 'Cato', 'throws', 'himself', 'upon', 'his', 'sword', ';', '.']
+clause: ['I', 'quietly', 'take', 'to', 'the', 'ship']
+```
+
+
 ### External Resources
 
 To use utilities for external resources such as the RBN, you need to point to your copy of those resources 
@@ -84,3 +100,9 @@ rbn = RBN(rbn_file)
 
 rbn.has_term('aanbiddelijk') # returns True
 ```
+
+## Anonymisation
+
+For review anonymisation you need a salt hash in a file called `impfic_core/secrets.py`. The repository doesn't contain this file to ensure other cannot recreate the user ID mapping. 
+An example file is available as `impfic_core/secrets_example.py`. Copy this file to `impfic_core/secrets.py` and update the salt hash to do your own user ID mapping.
+

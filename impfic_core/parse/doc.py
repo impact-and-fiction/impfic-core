@@ -95,7 +95,7 @@ def trankit_json_to_token(doc_idx: int, sent_idx: int, token: Dict[str, any]) ->
             upos=token['upos'],
             xpos=token['xpos'],
             xpos_dict=parse_features(token['xpos']) if '|' in token['xpos'] else {},
-            head=token['head'],
+            head=token['head'] - 1,
             feats=parse_features(token['feats']) if 'feats' in token else {},
             start=token['dspan'][0],
             end=token['dspan'][1],
