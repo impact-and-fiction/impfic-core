@@ -1,4 +1,4 @@
-from typing import Dict, Generator, List, Tuple
+from typing import Dict, Generator, List, Tuple, Union
 from collections import defaultdict
 
 import impfic_core.pattern.tag_sets_en as tag_sets
@@ -103,7 +103,7 @@ def get_pronouns(sent: Dict[str, any]) -> List[Dict[str, any]]:
 
 def get_verbs(sent: Dict[str, any]) -> List[Dict[str, any]]:
     verbs = []
-    tokens = prep_tokens(sent)
+    tokens = token_list_to_dict(sent)
     verb_groups = group_tokens_by_head_verb(tokens)
     for head_id in verb_groups:
         for token in verb_groups[head_id]:
@@ -146,19 +146,26 @@ def prep_tokens(sent: Dict[str, any]):
     return {token['id']: token for token in sent[word_field]}
 
 
-def get_verb_clusters(sent: Dict[str, any]):
-    tokens = prep_tokens(sent)
+def get_verb_clauses(sent: Dict[str, any]) -> List[List[Dict[str, any]]]:
+    """Return all clausal units in the sentence that contain a head verb."""
+    tokens = token_list_to_dict(sent)
     head_group = group_tokens_by_head_verb(tokens)
+    return [sorted(head_group[head_id], key=lambda t: t['id']) for head_id in head_group]
+
+
+def get_verb_clusters(sent: Dict[str, any]):
+    """Return all verbs per clausal unit in the sentence that contains a head verb."""
+    verb_clauses = get_verb_clauses(sent)
     verb_clusters = []
-    for head_id in head_group:
-        verbs = [token for token in head_group[head_id] if token['upos'] in tag_sets.VERB_POS]
+    for clause in verb_clauses:
+        verbs = [token for token in clause if token['upos'] in tag_sets.VERB_POS]
         if len(verbs) > 0:
             verb_clusters.append(verbs)
     return verb_clusters
 
 
 def get_subject_object_verb_clusters(sent: Dict[str, any]):
-    tokens = prep_tokens(sent)
+    tokens = token_list_to_dict(sent)
     head_group = group_tokens_by_head_verb(tokens)
     clusters = []
     for head_id in head_group:
@@ -174,9 +181,21 @@ def get_subject_object_verb_clusters(sent: Dict[str, any]):
     return clusters
 
 
+def token_list_to_dict(tokens: Union[List[Dict[str, any]], Dict[str, any]]) -> Dict[int, Dict[str, any]]:
+    if isinstance(tokens, list):
+        return {token['id']: token for token in tokens}
+    elif 'tokens' in tokens:
+        return {token['id']: token for token in tokens['tokens']}
+    elif 'words' in tokens:
+        return {token['id']: token for token in tokens['words']}
+    elif 1 in tokens:
+        return tokens
+    else:
+        raise TypeError(f"invalid type for tokens, must be list of tokens of sentence dictionary.")
+
+
 def get_pronoun_verb_pairs(sent: Dict[str, any]) -> Generator[Tuple[Dict[str, any], Dict[str, any]], None, None]:
-    word_field = 'tokens' if 'tokens' in sent else 'words'
-    tokens = {token['id']: token for token in sent[word_field]}
+    tokens = token_list_to_dict(sent)
     head_group = group_tokens_by_head_verb(tokens)
     for head_id in head_group:
         # print(head_id)

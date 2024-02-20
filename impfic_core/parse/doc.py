@@ -71,29 +71,40 @@ class Doc:
 
 
 def parse_features(features: str) -> Dict[str, any]:
-    feats = [feat.split('=') for feat in features.split('|') if len(feat) > 0]
+    feats = [feat for feat in features.split('|') if len(feat) > 0]
     feature_dict = {}
-    for key, value in feats:
-        feature_dict[key] = int(value) if value.isdigit() else value
+    for feat in feats:
+        if '=' in feat:
+            key, value = feat.split('=')
+        else:
+            key, value = feat, True
+        feature_dict[key] = int(value) if isinstance(value, str) and value.isdigit() else value
+    # feats = [feat.split('=') for feat in features.split('|') if len(feat) > 0]
+    # for key, value in feats:
+    #     feature_dict[key] = int(value) if value.isdigit() else value
     return feature_dict
 
 
 def trankit_json_to_token(doc_idx: int, sent_idx: int, token: Dict[str, any]) -> Token:
-    return Token(
-        id=sent_idx,
-        doc_idx=doc_idx,
-        text=token['text'],
-        lemma=token['lemma'],
-        upos=token['upos'],
-        xpos=token['xpos'],
-        xpos_dict=parse_features(token['xpos']) if '|' in token['xpos'] else {},
-        head=token['head'],
-        feats=parse_features(token['feats']) if 'feats' in token else {},
-        start=token['dspan'][0],
-        end=token['dspan'][1],
-        deprel=token['deprel'] if 'deprel' in token else None,
-        ner=token['ner'] if 'ner' in token else None
-    )
+    try:
+        return Token(
+            id=sent_idx,
+            doc_idx=doc_idx,
+            text=token['text'],
+            lemma=token['lemma'],
+            upos=token['upos'],
+            xpos=token['xpos'],
+            xpos_dict=parse_features(token['xpos']) if '|' in token['xpos'] else {},
+            head=token['head'],
+            feats=parse_features(token['feats']) if 'feats' in token else {},
+            start=token['dspan'][0],
+            end=token['dspan'][1],
+            deprel=token['deprel'] if 'deprel' in token else None,
+            ner=token['ner'] if 'ner' in token else None
+        )
+    except ValueError:
+        print(f"Error in token with doc_idx '{doc_idx}', sent_idx '{sent_idx}': {token}")
+        raise
 
 
 def spacy_json_to_token(doc_idx: int, sent_idx: int, token: Dict[str, any], doc: Dict[str, any]) -> Token:

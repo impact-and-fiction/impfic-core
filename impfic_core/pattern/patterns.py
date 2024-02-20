@@ -152,12 +152,17 @@ class Pattern:
             return False
         return token.feats['PronType'] == 'Prs'
 
-    def get_verb_clusters(self, sent: Sentence):
-        tokens = sent.tokens
-        head_group = self.group_tokens_by_head_verb(tokens)
+    def get_verb_clauses(self, sent: Sentence) -> List[List[Token]]:
+        """Return all clausal units in the sentence that contain a head verb."""
+        head_group = self.group_tokens_by_head_verb(sent.tokens)
+        return [sorted(head_group[head_id], key=lambda t: t.id) for head_id in head_group]
+
+    def get_verb_clusters(self, sent: Sentence) -> List[List[Token]]:
+        """Return all verbs per clausal unit in the sentence that contains a head verb."""
+        verb_clauses = self.get_verb_clauses(sent)
         verb_clusters = []
-        for head_id in head_group:
-            verbs = [token for token in head_group[head_id] if self.is_verb(token)]
+        for clause in verb_clauses:
+            verbs = [token for token in clause if self.is_verb(token)]
             if len(verbs) > 0:
                 verb_clusters.append(verbs)
         return verb_clusters
