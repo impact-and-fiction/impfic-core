@@ -150,7 +150,14 @@ def get_verb_clauses(sent: Dict[str, any]) -> List[List[Dict[str, any]]]:
     """Return all clausal units in the sentence that contain a head verb."""
     tokens = token_list_to_dict(sent)
     head_group = group_tokens_by_head_verb(tokens)
-    return [sorted(head_group[head_id], key=lambda t: t['id']) for head_id in head_group]
+    clauses = []
+    for head_id in sorted(head_group):
+        clause = {
+            'id': head_id,
+            'tokens': sorted(head_group[head_id], key=lambda t: t['id'])
+        }
+        clauses.append(clause)
+    return clauses
 
 
 def get_verb_clusters(sent: Dict[str, any]):

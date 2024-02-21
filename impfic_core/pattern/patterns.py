@@ -1,8 +1,12 @@
-from typing import Dict, Generator, List, Tuple
+from typing import Dict, Generator, List, Tuple, Union
 from collections import defaultdict
 
-from impfic_core.parse.doc import Sentence, Token
+from impfic_core.parse.doc import Clause, Sentence, Token
 import impfic_core.pattern.tag_sets as tag_sets
+
+
+def sequence_to_list(sequence: Union[Sentence, Clause, List[Token]]):
+    return sequence if isinstance(sequence, list) else sequence.tokens
 
 
 class Pattern:
@@ -13,10 +17,14 @@ class Pattern:
             raise KeyError(f'unknown language code "{lang}"')
         self.tag_sets = tag_sets.lang_tag_sets[lang]
 
-    def is_subject(self, token: Token):
+    #######################
+    # Token-level methods #
+    #######################
+
+    def is_subject(self, token: Token) -> bool:
         return token.deprel in self.tag_sets.SUBS
 
-    def is_object(self, token: Token):
+    def is_object(self, token: Token) -> bool:
         return token.deprel in self.tag_sets.OBJS
 
     def is_verb(self, token: Token) -> bool:
@@ -25,9 +33,91 @@ class Pattern:
     def is_head_verb(self, token: Token) -> bool:
         return self.is_verb(token) and token.deprel not in self.tag_sets.NON_HEAD_VERB_DEPRELS
 
+    def is_person_pronoun(self, token: Token) -> bool:
+        """Language specific."""
+        return False
+
     @staticmethod
-    def get_pronouns(tokens: List[Token]) -> List[Token]:
-        return [token for token in tokens if token.upos == 'PRON']
+    def is_past_tense(token: Token) -> bool:
+        """Language specific."""
+        return False
+
+    @staticmethod
+    def is_present_tense(token: Token) -> bool:
+        """Language specific."""
+        return False
+
+    @staticmethod
+    def is_perfect_aux(token: Token) -> bool:
+        """Language specific."""
+        return False
+
+    def is_past_perfect_aux(self, token: Token) -> bool:
+        """Language specific."""
+        return False
+
+    def is_present_perfect_aux(self, token: Token) -> bool:
+        """Language specific."""
+        return False
+
+    @staticmethod
+    def is_infinitive_verb(token: Token) -> bool:
+        """Language specific."""
+        return False
+
+    @staticmethod
+    def is_participle_verb(token: Token) -> bool:
+        """Language specific."""
+        return False
+
+    ##########################
+    # Sequence-level methods #
+    ##########################
+
+    def get_verbs(self, sequence: Union[Sentence, Clause, List[Token]]) -> List[Token]:
+        return [token for token in sequence_to_list(sequence) if self.is_verb(token)]
+
+    @staticmethod
+    def get_aux_verbs(sequence: Union[Sentence, Clause, List[Token]]) -> List[Token]:
+        return [token for token in sequence_to_list(sequence) if token.upos == 'AUX']
+
+    def get_perfect_aux_verbs(self, sequence: Union[Sentence, Clause, List[Token]]) -> List[Token]:
+        return [token for token in sequence_to_list(sequence) if self.is_perfect_aux(token)]
+
+    def get_inf_verbs(self, sequence: Union[Sentence, Clause, List[Token]]) -> List[Token]:
+        return [token for token in sequence_to_list(sequence) if self.is_infinitive_verb(token)]
+
+    def get_participle_verbs(self, sequence: Union[Sentence, Clause, List[Token]]) -> List[Token]:
+        return [token for token in sequence_to_list(sequence) if self.is_participle_verb(token)]
+
+    @staticmethod
+    def get_pronouns(sequence: Union[Sentence, Clause, List[Token]]) -> List[Token]:
+        return [token for token in sequence_to_list(sequence) if token.upos == 'PRON']
+
+    def has_aux_past(self, sequence: Union[Sentence, Clause, List[Token]]):
+        return any(self.is_past_tense(token) for token in self.get_perfect_aux_verbs(sequence))
+
+    def has_aux_present(self, sequence: Union[Sentence, Clause, List[Token]]):
+        return any(self.is_present_tense(token) for token in self.get_perfect_aux_verbs(sequence))
+
+    def is_perfect_tense_clause(self, clause: Clause):
+        if isinstance(clause, Clause) is False:
+            raise TypeError(f"past perfect can only be determined for Clause, not for {type(clause)}")
+        verbs = self.get_verbs(clause)
+        has_aux_perfect = any(self.is_perfect_aux(token) for token in verbs)
+        has_verb_participle = any(self.is_participle_verb(token) for token in verbs)
+        has_verb_inf = any(self.is_infinitive_verb(token) for token in verbs)
+        return has_aux_perfect and (has_verb_participle or has_verb_inf)
+
+    def is_past_perfect_clause(self, clause: Clause):
+        return self.is_perfect_tense_clause(clause) and self.has_aux_past(clause)
+
+    def is_present_perfect_clause(self, clause: Clause):
+        return self.is_perfect_tense_clause(clause) and self.has_aux_present(clause)
+
+    ####################
+    # Grouping methods #
+    ####################
 
     @staticmethod
     def group_tokens_by_head(tokens: List[Token]) -> Dict[int, List[Token]]:
@@ -87,7 +177,8 @@ class Pattern:
                 continue
             for token in head_group[head_id]:
                 if debug > 0:
-                    print(f'group_tokens_by_head_verb - head_id: {head_id}\thead_verb_id: {head_verb_id}\ttoken:', token.text, token.id, token.head)
+                    print(f'group_tokens_by_head_verb - head_id: {head_id}\thead_verb_id: {head_verb_id}'
+                          f'\ttoken:', token.text, token.id, token.head)
                     print('\t\ttoken (upos, deprel):', (token.upos, token.deprel))
                     print('\t\ttoken.id in head_group:', token.id in head_group)
                     print('\t\ttoken.id is_head_verb:', self.is_head_verb(token))
@@ -159,73 +250,21 @@ class Pattern:
                 # print('-------------------\n')
         return head_verb_group
 
-    @staticmethod
-    def get_pronoun_info(pron_token: Token) -> Dict[str, any]:
-        # person_fields = 'pt', 'vw_type', 'pos', 'case', 'status', 'person', 'card', 'genus'
-        # seven_fields 'pt', 'vw_type', 'pos', 'case', 'status', 'person', 'card'
-        # six_fields 'pt', 'vw_type', 'pos', 'case', 'position', 'inflection'
-        xpos_fields = ['pt', 'vw_type', 'pos', 'case', 'status', 'person', 'card']
-        # xpos_fields = ['Person', 'Poss', 'PronType', 'Case']
-        xpos_values = pron_token.xpos.split('|')
-        pron_info = {field: xpos_values[fi] if fi in xpos_fields else None for fi, field in enumerate(xpos_fields)}
-        if pron_info['vw_type'] == 'pers':
-            pron_info['genus'] = xpos_values[-1]
-        for key in pron_token.feats:
-            pron_info[key.lower()] = pron_token.feats[key].lower()
-        pron_info['word'] = pron_token.text
-        pron_info['lemma'] = pron_token.lemma
-        return pron_info
-
-    def get_person_pronouns(self, sent: Sentence) -> List[Token]:
-        return [token for token in self.get_pronouns(sent.tokens) if self.is_person_pronoun(token)]
-
-    def get_verbs(self, sent: Sentence) -> List[Token]:
-        verbs = []
-        tokens = sent.tokens
-        verb_groups = self.group_tokens_by_head_verb(tokens)
-        for head_id in verb_groups:
-            for token in verb_groups[head_id]:
-                if self.is_verb(token):
-                    verbs.append(token)
-        return verbs
-
-    @staticmethod
-    def get_verb_info(verb_token: Token, head_id: int) -> Dict[str, any]:
-        xpos_fields = ['pt', 'w_form', 'pv_time', 'card']
-        # xpos_fields = ['VerbForm', 'Number', 'Tense']
-        xpos_values = verb_token.xpos.split('|')
-        verb_info = {field: xpos_values[fi] if fi in xpos_fields else None for fi, field in enumerate(xpos_fields)}
-        for key in verb_token.feats:
-            verb_info[key.lower()] = verb_token.feats[key].lower()
-        verb_info['pos'] = verb_token.upos
-        verb_info['word'] = verb_token.text
-        verb_info['lemma'] = verb_token.lemma
-        verb_info['word_index'] = verb_token.id
-        verb_info['is_head_verb'] = verb_token.id == head_id
-        verb_info['head_verb_id'] = head_id
-        return verb_info
-
-    @staticmethod
-    def is_person_pronoun(token: Token) -> bool:
-        if token.upos != 'PRON':
-            return False
-        if token.feats is None:
-            return False
-        if 'PronType' not in token.feats:
-            return False
-        return token.feats['PronType'] == 'Prs'
-
-    def get_verb_clauses(self, sent: Sentence, copy_conj_subject: bool = False) -> List[List[Token]]:
+    def get_verb_clauses(self, sent: Sentence, copy_conj_subject: bool = False) -> List[Clause]:
         """Return all clausal units in the sentence that contain a head verb."""
         head_group = self.group_tokens_by_head_verb(sent.tokens, copy_conj_subject=copy_conj_subject)
-        return [sorted(head_group[head_id], key=lambda t: t.id) for head_id in head_group]
+        clauses = []
+        for head_id in sorted(head_group):
+            clause = Clause(head_id, sorted(head_group[head_id], key=lambda t: t.id))
+            clauses.append(clause)
+        return clauses
 
     def get_verb_clusters(self, sent: Sentence, copy_conj_subject: bool = False) -> List[List[Token]]:
         """Return all verbs per clausal unit in the sentence that contains a head verb."""
         verb_clauses = self.get_verb_clauses(sent, copy_conj_subject=copy_conj_subject)
         verb_clusters = []
         for clause in verb_clauses:
-            verbs = [token for token in clause if self.is_verb(token)]
+            verbs = [token for token in clause.tokens if self.is_verb(token)]
             if len(verbs) > 0:
                 verb_clusters.append(verbs)
         return verb_clusters
@@ -259,4 +298,3 @@ class Pattern:
                 for verb in verbs:
                     yield pron, verb
         return None
-

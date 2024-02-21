@@ -23,6 +23,14 @@ rel_tags = [
     'orphan', 'other'
 ]
 
+verb_tags = {
+    'past_tense': 'VBD',
+    'present_participle': 'VBG',
+    'past_participle': 'VBN',
+    'sing_present_non_third': 'VBP',
+    'sing_present_third': 'VBZ',
+}
+
 clause_rel = {'advcl'}
 
 headers = [

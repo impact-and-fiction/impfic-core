@@ -34,6 +34,13 @@ class Entity:
 
 
 @dataclass
+class Clause:
+
+    id: int
+    tokens: List[Token]
+
+
+@dataclass
 class Sentence:
 
     id: int
