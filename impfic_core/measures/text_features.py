@@ -10,9 +10,9 @@ import pandas as pd
 from typing import List, Tuple, Union
 from tqdm import tqdm
 
-from impfic_core.parse.doc import Doc
+from impfic_core.api import Doc
 from impfic_core.parse.doc import trankit_json_to_doc
-from impfic_core.pattern.patterns_nl import PatternNL
+from impfic_core.api import Pattern, get_lang_patterns
 
 
 # load
@@ -80,7 +80,7 @@ def read_book_chunk_files(book_chunk_files: list[str]) -> dict:
 def get_all_book_stats(parsed_isbns: list[str], data_dir: str, lang: str):
     """Overarching function that extracts books' stats"""
     all_stats = []
-    pattern = PatternNL(lang)
+    pattern = get_lang_patterns(lang)
     # add progress bar
     for isbn in tqdm(parsed_isbns, desc="Processing Books"):
         book_stats = get_book_stats(isbn, data_dir, pattern)

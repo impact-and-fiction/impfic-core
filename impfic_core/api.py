@@ -2,7 +2,8 @@ from impfic_core.pattern.patterns import Pattern
 from impfic_core.pattern.patterns_nl import PatternNL
 import impfic_core.pattern.tag_sets_en as tag_sets_en
 import impfic_core.pattern.tag_sets_nl as tag_sets_nl
-import impfic_core.parse.doc as parse_doc
+from impfic_core.parse.doc import trankit_json_to_doc
+from impfic_core.parse.doc import Clause, Doc, Sentence, Token
 from impfic_core.parse.chunk import read_chunk_file
 import impfic_core.parse.parse_trankit_sentence as parse_trankit_sentence
 
