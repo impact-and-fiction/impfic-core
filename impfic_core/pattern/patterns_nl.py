@@ -52,6 +52,38 @@ class PatternNL(Pattern):
     def is_participle_verb(token: Token) -> bool:
         return token.upos == 'VERB' and 'VerbForm' in token.feats and token.feats['VerbForm'] == 'Part'
 
+    def _has_aux_perfect(self, verbs: List[Token]) -> bool:
+        return any(self.is_perfect_aux(token) for token in verbs)
+
+    def _has_verb_participle(self, verbs: List[Token]) -> bool:
+        return any(self.is_participle_verb(token) for token in verbs)
+
+    def _has_verb_inf(self, verbs: List[Token]) -> bool:
+        return any(self.is_infinitive_verb(token) for token in verbs)
+
+    def is_perfect_tense_clause(self, clause: Clause):
+        if isinstance(clause, Clause) is False:
+            raise TypeError(f"past perfect can only be determined for Clause, not for {type(clause)}")
+        verbs = self.get_verbs(clause)
+        return self._has_aux_perfect(verbs) and (self._has_verb_participle(verbs) or self._has_verb_inf(verbs))
+
+    def is_simple_tense_clause(self, clause: Clause):
+        return self.is_perfect_tense_clause(clause) is False
+
+    def is_past_perfect_clause(self, clause: Clause):
+        return self.is_perfect_tense_clause(clause) and self.has_aux_past(clause)
+
+    def is_present_perfect_clause(self, clause: Clause):
+        return self.is_perfect_tense_clause(clause) and self.has_aux_present(clause)
+
+    def is_past_simple_clause(self, clause: Clause):
+        has_past_tense_verb = any(self.is_past_tense(token) for token in self.get_verbs(clause))
+        return has_past_tense_verb and self.is_simple_tense_clause(clause)
+
+    def is_present_simple_clause(self, clause: Clause):
+        has_present_tense_verb = any(self.is_present_tense(token) for token in self.get_verbs(clause))
+        return has_present_tense_verb and self.is_simple_tense_clause(clause)
+
     #######################
     # Group-level methods #
     #######################

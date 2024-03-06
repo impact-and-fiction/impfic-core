@@ -100,13 +100,13 @@ def get_book_stats(isbn: str, data_dir: str, pattern: Pattern) -> list[Union[str
     book_chunk_files = get_book_chunk_files(isbn, data_dir)
     book_chunks = [book_chunk for book_chunk in read_book_chunk_files(book_chunk_files)]
     book_docs = [trankit_json_to_doc(book_chunk) for book_chunk in book_chunks]
-    total, present, past, pv, pp, pastp = get_verb_count(book_docs, pattern)
+    total, present, past, pv, clause_count, presp, pastp, press, pasts = get_verb_count(book_docs, pattern)
     num_tokens, sent_len_mean, sent_len_median, sent_len_stdev, unique_tokens = get_length_stats(book_docs)
     pron_count, propn_count, det_count = get_funcword_count(book_docs)
     noun_count, adj_count, adv_count, intj_count = get_uposword_count(book_docs)
     sconj_count, cconj_count, punct_count = get_gramword_count(book_docs)
     # added present_perfect_count below as 'pp'
-    stats = [isbn, total, present, past, pv, pp, pastp, num_tokens, sent_len_mean, sent_len_median, sent_len_stdev,
+    stats = [isbn, total, present, past, pv, clause_count, presp, pastp, press, pasts, num_tokens, sent_len_mean, sent_len_median, sent_len_stdev,
              unique_tokens, pron_count, propn_count, det_count, noun_count, adj_count, adv_count, intj_count,
              sconj_count, cconj_count, punct_count]
     return stats
@@ -139,15 +139,20 @@ def get_verb_count(book_docs: List[Doc], pattern: Pattern) -> tuple:
     total_pv_count = 0
     present_perfect_count = 0
     past_perfect_count = 0
+    present_simple_count = 0
+    past_simple_count = 0
 
     sentences = [sent for doc in book_docs for sent in doc.sentences]
     # print('number of sentences:', len(sentences))
     clauses = [clause for sent in sentences for clause in pattern.get_verb_clauses(sent)]
     # print('number of clauses:', len(clauses))
+    clause_count = len(clauses)
 
     for clause in clauses:
         present_perfect_count += pattern.is_present_perfect_clause(clause)
         past_perfect_count += pattern.is_past_perfect_clause(clause)
+        present_simple_count += pattern.is_present_simple_clause(clause)
+        past_simple_count += pattern.is_past_simple_clause(clause)
         for token in clause.tokens:
             if token.upos == 'VERB':
 
@@ -162,7 +167,8 @@ def get_verb_count(book_docs: List[Doc], pattern: Pattern) -> tuple:
                     all_past_tense_count += 1
 
     return (total_verb_count, all_present_tense_count, all_past_tense_count,
-            total_pv_count, present_perfect_count, past_perfect_count)
+            total_pv_count, clause_count, present_perfect_count, past_perfect_count,
+            present_simple_count, past_simple_count)
 
 
 def get_funcword_count(book_docs: List[Doc]) -> Tuple[int, int, int]:
@@ -251,7 +257,7 @@ def extract_text_features(data_dir: str, lang: str, max_items: int = None) -> pd
     columns = [
         'isbn', 'total_verbs', 'all_present_verbs', 'all_past_verbs', 'pv_verbs',
         # added present perfect verbs here as 'pp_verbs'
-        'pp_verbs', 'pastp_verbs',
+        'clause_count', 'pres_part_verbs', 'past_part_verbs', 'pres_simple_verbs', 'past_simple_verbs',
         'num_tokens', 'sent_len_mean', 'sent_len_median',
         'sent_len_stdev', 'unique_tokens_count',
         'pron_count', 'propn_count', 'det_count', 'noun_count', 'adj_count', 'adv_count', 'intj_count',

@@ -101,19 +101,28 @@ class Pattern:
         return any(self.is_present_tense(token) for token in self.get_perfect_aux_verbs(sequence))
 
     def is_perfect_tense_clause(self, clause: Clause):
-        if isinstance(clause, Clause) is False:
-            raise TypeError(f"past perfect can only be determined for Clause, not for {type(clause)}")
-        verbs = self.get_verbs(clause)
-        has_aux_perfect = any(self.is_perfect_aux(token) for token in verbs)
-        has_verb_participle = any(self.is_participle_verb(token) for token in verbs)
-        has_verb_inf = any(self.is_infinitive_verb(token) for token in verbs)
-        return has_aux_perfect and (has_verb_participle or has_verb_inf)
+        """Language specific."""
+        return False
+
+    def is_simple_tense_clause(self, clause: Clause):
+        """Language specific."""
+        return False
 
     def is_past_perfect_clause(self, clause: Clause):
-        return self.is_perfect_tense_clause(clause) and self.has_aux_past(clause)
+        """Language specific."""
+        return False
 
     def is_present_perfect_clause(self, clause: Clause):
-        return self.is_perfect_tense_clause(clause) and self.has_aux_present(clause)
+        """Language specific."""
+        return False
+
+    def is_past_simple_clause(self, clause: Clause):
+        """Language specific."""
+        return False
+
+    def is_present_simple_clause(self, clause: Clause):
+        """Language specific."""
+        return False
 
     ####################
     # Grouping methods #
