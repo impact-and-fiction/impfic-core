@@ -1,5 +1,6 @@
 from typing import Dict, Generator, List, Tuple, Union
 from collections import defaultdict
+from string import punctuation
 
 from impfic_core.parse.doc import Clause, Sentence, Token
 import impfic_core.pattern.tag_sets as tag_sets
@@ -21,6 +22,9 @@ class Pattern:
     # Token-level methods #
     #######################
 
+    def is_punct(self, token: Token) -> bool:
+        return token.text in punctuation or all([char in punctuation for char in token.text])
+
     def is_subject(self, token: Token) -> bool:
         return token.deprel in self.tag_sets.SUBS
 
@@ -31,6 +35,7 @@ class Pattern:
         return token.upos in self.tag_sets.VERB_POS
 
     def is_head_verb(self, token: Token) -> bool:
+        """Determine whether a verb is the head of a clause."""
         return self.is_verb(token) and token.deprel not in self.tag_sets.NON_HEAD_VERB_DEPRELS
 
     def is_person_pronoun(self, token: Token) -> bool:

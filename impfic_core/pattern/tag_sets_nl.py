@@ -5,6 +5,8 @@ OBJS = {'obj', 'iobj', 'dobj', 'pobj', 'obl', 'obl:agent'}
 SUB_OBJS = {'nsubj', 'nsubj:pass', 'csubj', 'obj', 'iobj', 'obl', 'obl:agent'}
 NON_HEAD_VERB_DEPRELS = {'xcomp', 'nsubj:pass', 'aux:pass', None}
 
+# pv
+# inf in beknopte bijzin
 
 pos_tags = [
     'DET', 'NOUN', 'AUX', 'ADJ', 'CCONJ',

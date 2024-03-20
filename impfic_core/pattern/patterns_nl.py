@@ -46,11 +46,12 @@ class PatternNL(Pattern):
 
     @staticmethod
     def is_infinitive_verb(token: Token) -> bool:
-        return token.upos == 'VERB' and 'VerbForm' in token.feats and token.feats['VerbForm'] == 'Inf'
+        return token.upos in {'VERB', 'AUX'} and 'VerbForm' in token.feats and token.feats['VerbForm'] == 'Inf'
 
     @staticmethod
     def is_participle_verb(token: Token) -> bool:
-        return token.upos == 'VERB' and 'VerbForm' in token.feats and token.feats['VerbForm'] == 'Part'
+        return token.upos == 'VERB' and 'VerbForm' in token.feats and token.feats['VerbForm'] == 'Part' and \
+               'vd' in token.xpos_dict and 'vrij' in token.xpos_dict
 
     def _has_aux_perfect(self, verbs: List[Token]) -> bool:
         return any(self.is_perfect_aux(token) for token in verbs)
@@ -65,7 +66,12 @@ class PatternNL(Pattern):
         if isinstance(clause, Clause) is False:
             raise TypeError(f"past perfect can only be determined for Clause, not for {type(clause)}")
         verbs = self.get_verbs(clause)
-        return self._has_aux_perfect(verbs) and (self._has_verb_participle(verbs) or self._has_verb_inf(verbs))
+        if self._has_aux_perfect(verbs):
+            if self._has_verb_participle(verbs):
+                return True
+            elif [self.is_infinitive_verb(token) for token in verbs].count(True) >= 2:
+                return True
+        return False
 
     def is_simple_tense_clause(self, clause: Clause):
         return self.is_perfect_tense_clause(clause) is False
