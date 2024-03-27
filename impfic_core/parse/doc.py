@@ -171,6 +171,8 @@ def trankit_json_to_entities(sent_tokens: List[Token], sent: Dict[str, any]) -> 
     """Turn the tokens of a Trankit sentence with NER labels into entities."""
     entity_tokens = []
     entities = []
+    if len(sent_tokens) == 0:
+        return entities
     sent_start = sent_tokens[0].start
     for token in sent_tokens:
         if token.ner[0] in 'OBS':
@@ -200,8 +202,18 @@ def spacy_json_to_sentence(sent_idx: int, token_offset: int, sent: Dict[str, any
     )
 
 
-def trankit_json_to_sentence(token_offset: int, sentence: Dict[str, any]) -> Sentence:
-    tokens = [trankit_json_to_token(ti+token_offset, ti, token) for ti, token in enumerate(sentence['tokens'])]
+def trankit_json_to_sentence(token_offset: int, sentence: Dict[str, any],
+                             skip_bad_tokens: bool = False) -> Sentence:
+    if skip_bad_tokens is True:
+        tokens = []
+        for ti, token in enumerate(sentence['tokens']):
+            try:
+                token = trankit_json_to_token(ti+token_offset, ti, token)
+                tokens.append(token)
+            except KeyError:
+                continue
+    else:
+        tokens = [trankit_json_to_token(ti+token_offset, ti, token) for ti, token in enumerate(sentence['tokens'])]
     entities = trankit_json_to_entities(tokens, sentence)
     return Sentence(
         id=sentence['id'],
