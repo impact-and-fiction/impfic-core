@@ -134,16 +134,19 @@ class Pattern:
     ####################
 
     @staticmethod
-    def group_tokens_by_head(tokens: List[Token]) -> Dict[int, List[Token]]:
+    def group_tokens_by_head(tokens: List[Token], debug: int = 0) -> Dict[int, List[Token]]:
         """Group a list of tokens by their head tokens."""
         head_group = defaultdict(list)
         if len(tokens) == 0:
+            if debug > 1:
+                print('Pattern.group_tokens_by_head - no tokens, returning no groups')
             return head_group
         for token in tokens:
             head_group[token.head].append(token)
         for head_id in head_group:
-            head_token = tokens[head_id]
-            head_group[head_id].append(head_token)
+            if head_id != -1:
+                head_token = tokens[head_id]
+                head_group[head_id].append(head_token)
         return head_group
 
     def get_head_verb_id(self, head_id: int, tokens: List[Token]) -> int:
@@ -178,20 +181,20 @@ class Pattern:
             return head_verb_group
         for head_id in head_group:
             if debug > 0:
-                print(f'group_tokens_by_head_verb - head_id: {head_id}')
+                print(f'Pattern.group_tokens_by_head_verb - 1 - head_id: {head_id}')
             if head_id > len(tokens):
-                print('head_id larger than number of tokens:')
-                print('group_tokens_by_head_verb - head_id:', head_id)
-                print('group_tokens_by_head_verb - tokens:', tokens)
+                print('Pattern.group_tokens_by_head_verb - head_id larger than number of tokens:')
+                print('Pattern.group_tokens_by_head_verb - head_id:', head_id)
+                print('Pattern.group_tokens_by_head_verb - tokens:', tokens)
             head_verb_id = self.get_head_verb_id(head_id, tokens)
             if debug > 0:
-                print(f'group_tokens_by_head_verb - head_verb_id: {head_verb_id}\n\n')
-            if head_verb_id == -1:
+                print(f'Pattern.roup_tokens_by_head_verb - 2 - head_verb_id: {head_verb_id}\n\n')
+            # if head_verb_id == -1:
                 # list of tokens has no verb
-                continue
+            #     continue
             for token in head_group[head_id]:
                 if debug > 0:
-                    print(f'group_tokens_by_head_verb - head_id: {head_id}\thead_verb_id: {head_verb_id}'
+                    print(f'Pattern.group_tokens_by_head_verb - 3 - head_id: {head_id}\thead_verb_id: {head_verb_id}'
                           f'\ttoken:', token.text, token.id, token.head)
                     print('\t\ttoken (upos, deprel):', (token.upos, token.deprel))
                     print('\t\ttoken.id in head_group:', token.id in head_group)
@@ -199,7 +202,7 @@ class Pattern:
                 if token.id in head_group and self.is_head_verb(token):
                     if token not in head_verb_group[token.id]:
                         if debug > 0:
-                            print('HEAD VERB:', token.id, token.text, token.deprel)
+                            print('Pattern.group_token_by_head_verb - HEAD VERB:', token.id, token.text, token.deprel)
                         head_verb_group[token.id].append(token)
                 elif token not in head_verb_group[head_verb_id]:
                     head_verb_group[head_verb_id].append(token)
@@ -209,13 +212,22 @@ class Pattern:
                     if debug > 0:
                         print('\tskipping token:', token)
                     pass
-            for head_verb_id in sorted(head_verb_group):
-                if debug > 0:
-                    print('\n---------------------\n')
-                    print('content of head_verb_group with head_verb_id:', head_verb_id)
+            if debug > 1:
+                for head_verb_id in sorted(head_verb_group):
+                    print('\n\t---------------------\n')
+                    print('\tcontent of head_verb_group with head_verb_id:', head_verb_id)
                     for token in sorted(head_verb_group[head_verb_id], key=lambda t: t.id):
                         print('\t', token.id, token.text)
                     print('\n---------------------\n')
+        if copy_conj_subject is True:
+            head_verb_group = self.copy_subject_across_conjunctions(head_verb_group)
+        for head_verb_id in head_verb_group:
+            head_verb_group[head_verb_id].sort(key=lambda t: t.id)
+        head_verb_group = self.merge_verb_groups(head_verb_group)
+        return head_verb_group
+
+    @staticmethod
+    def merge_verb_groups(head_verb_group: Dict[int, List[Token]]):
         merge_into = {}
         for head_verb_id in head_verb_group:
             for other_head_verb_id in head_verb_group:
@@ -232,10 +244,6 @@ class Pattern:
                             if token not in head_verb_group[new_head_verb_id]]
             head_verb_group[new_head_verb_id].extend(merge_tokens)
             del head_verb_group[head_verb_id]
-        if copy_conj_subject is True:
-            head_verb_group = self.copy_subject_across_conjunctions(head_verb_group)
-        for head_verb_id in head_verb_group:
-            head_verb_group[head_verb_id].sort(key=lambda t: t.id)
         return head_verb_group
 
     def copy_subject_across_conjunctions(self, head_verb_group: Dict[int, List[Token]]) -> Dict[int, List[Token]]:

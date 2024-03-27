@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Dict, List, Union
 
 from impfic_core.parse.doc import Clause, Sentence, Token
@@ -43,6 +44,10 @@ class PatternNL(Pattern):
 
     def is_present_perfect_aux(self, token: Token) -> bool:
         return self.is_perfect_aux(token) and self.is_present_tense(token)
+
+    @staticmethod
+    def is_finite_verb(token: Token) -> bool:
+        return token.upos in {'VERB', 'AUX'} and 'VerbForm' in token.feats and token.feats['VerbForm'] == 'Fin'
 
     @staticmethod
     def is_infinitive_verb(token: Token) -> bool:
@@ -130,3 +135,63 @@ class PatternNL(Pattern):
         verb_info['is_head_verb'] = verb_token.id == head_id
         verb_info['head_verb_id'] = head_id
         return verb_info
+
+    def get_head_finite_verb_id(self, head_id: int, tokens: List[Token]) -> int:
+        """Find the nearest head verb that is finite, or the root of the sentence."""
+        head_verb = tokens[head_id]
+        if head_verb.deprel == 'root':
+            return head_id
+        if head_id == -1:
+            return head_id
+        if self.is_finite_verb(head_verb):
+            return head_id
+        else:
+            return self.get_head_finite_verb_id(head_verb.head, tokens)
+
+    def group_tokens_by_finite_verb(self, tokens: List[Token], copy_conj_subject: bool = False,
+                                    debug: int = 0):
+        """Group all sentence tokens by verb groups that contain a finite verb."""
+        head_verb_group = self.group_tokens_by_head_verb(tokens, copy_conj_subject=copy_conj_subject,
+                                                         debug=debug-1)
+        finite_verb_group = defaultdict(list)
+        for head_verb_id in head_verb_group:
+            if debug > 0:
+                print(f"PatternNL.group_tokens_by_finite_verb - head_verb_id: {head_verb_id}")
+            for token in head_verb_group[head_verb_id]:
+                if debug > 0:
+                    print(f"\ttoken for head_verb_group: {token.id} {token.text} {token.deprel}")
+            if any(self.is_finite_verb(token) for token in head_verb_group[head_verb_id]):
+                # this group has a finite-verb, so is a finite-verb group
+                if debug > 0:
+                    print('\t\thas finite verb - keeping group')
+                finite_verb_group[head_verb_id] = [token for token in head_verb_group[head_verb_id]]
+            elif any(token.deprel == 'root' for token in head_verb_group[head_verb_id]):
+                # this is the top-level group but it has no finite verb
+                if debug > 0:
+                    print('\t\thas root - keeping group')
+                finite_verb_group[head_verb_id] = [token for token in head_verb_group[head_verb_id]]
+            else:
+                # this group has no finite verb, so merge it with the
+                # lowest ancestor finite verb group
+                if debug > 0:
+                    print('\t\thas no root nor finite verb - merging group')
+                head_finite_verb_id = self.get_head_finite_verb_id(head_verb_id, tokens)
+                finite_verb_group[head_finite_verb_id].extend(head_verb_group[head_verb_id])
+        if copy_conj_subject is True:
+            finite_verb_group = self.copy_subject_across_conjunctions(head_verb_group)
+        return finite_verb_group
+
+    def get_verb_clauses(self, sent: Sentence, copy_conj_subject: bool = False, debug: int = 0) -> List[Clause]:
+        """Return all clausal units in the sentence that contain a head verb.
+
+        A verb is the head of a clause if it is a finite verb (PV in Dutch).
+        Here we follow the interpretation in the Lassy annotation scheme.
+        See: https://www.let.rug.nl/vannoord/Lassy/sa-man_lassy.pdf"""
+        finite_verb_group = self.group_tokens_by_finite_verb(sent.tokens, copy_conj_subject=copy_conj_subject,
+                                                             debug=debug)
+        clauses = []
+        for head_id in sorted(finite_verb_group):
+            clause = Clause(head_id, sorted(finite_verb_group[head_id], key=lambda t: t.id))
+            clauses.append(clause)
+        return clauses
+

@@ -101,12 +101,14 @@ def get_book_stats(isbn: str, data_dir: str, pattern: Pattern) -> list[Union[str
     book_chunks = [book_chunk for book_chunk in read_book_chunk_files(book_chunk_files)]
     book_docs = [trankit_json_to_doc(book_chunk) for book_chunk in book_chunks]
     total, present, past, pv, clause_count, presp, pastp, press, pasts = get_verb_count(book_docs, pattern)
-    num_tokens, sent_len_mean, sent_len_median, sent_len_stdev, unique_tokens = get_length_stats(book_docs)
+    num_tokens, num_sents, sent_len_mean, sent_len_median, sent_len_stdev, unique_tokens = get_length_stats(book_docs)
     pron_count, propn_count, det_count = get_funcword_count(book_docs)
     noun_count, adj_count, adv_count, intj_count = get_uposword_count(book_docs)
     sconj_count, cconj_count, punct_count = get_gramword_count(book_docs)
     # added present_perfect_count below as 'pp'
-    stats = [isbn, total, present, past, pv, clause_count, presp, pastp, press, pasts, num_tokens, sent_len_mean, sent_len_median, sent_len_stdev,
+    stats = [isbn,
+             total, present, past, pv, clause_count, presp, pastp, press, pasts,
+             num_tokens, num_sents, sent_len_mean, sent_len_median, sent_len_stdev,
              unique_tokens, pron_count, propn_count, det_count, noun_count, adj_count, adv_count, intj_count,
              sconj_count, cconj_count, punct_count]
     return stats
@@ -116,8 +118,10 @@ def get_length_stats(book_docs: List[Doc]):
     """Count length of sentences in book docs"""
     sentence_lengths = []
     num_tokens = 0
+    num_sents = 0
     unique_tokens = set()
     for doc in book_docs:
+        num_sents += len(doc.sentences)
         for sentence in doc.sentences:
             sentence_length = len(sentence)
             sentence_lengths.append(sentence_length)
@@ -128,7 +132,7 @@ def get_length_stats(book_docs: List[Doc]):
     sent_len_mean = sentence_lengths.mean()
     sent_len_median = np.median(sentence_lengths)
     sent_len_stdev = sentence_lengths.std()
-    return num_tokens, sent_len_mean, sent_len_median, sent_len_stdev, unique_tokens_count
+    return num_tokens, num_sents, sent_len_mean, sent_len_median, sent_len_stdev, unique_tokens_count
 
 
 def get_verb_count(book_docs: List[Doc], pattern: Pattern) -> tuple:
@@ -257,8 +261,8 @@ def extract_text_features(data_dir: str, lang: str, max_items: int = None) -> pd
     columns = [
         'isbn', 'total_verbs', 'all_present_verbs', 'all_past_verbs', 'pv_verbs',
         # added present perfect verbs here as 'pp_verbs'
-        'clause_count', 'pres_part_verbs', 'past_part_verbs', 'pres_simple_verbs', 'past_simple_verbs',
-        'num_tokens', 'sent_len_mean', 'sent_len_median',
+        'num_clauses', 'pres_part_verbs', 'past_part_verbs', 'pres_simple_verbs', 'past_simple_verbs',
+        'num_tokens', 'num_sents', 'sent_len_mean', 'sent_len_median',
         'sent_len_stdev', 'unique_tokens_count',
         'pron_count', 'propn_count', 'det_count', 'noun_count', 'adj_count', 'adv_count', 'intj_count',
         'sconj_count', 'cconj_count', 'punct_count'
