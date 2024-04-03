@@ -51,7 +51,7 @@ def get_word_lemma_token_count(book_chunk: Doc) -> Tuple[Counter, Counter]:
     word_count = Counter()
     lemma_count = Counter()
     for sent in book_chunk.sentences:
-        word_count.update([token.word for token in sent.tokens])
+        word_count.update([token.text for token in sent.tokens])
         lemma_count.update([token.lemma for token in sent.tokens])
     return word_count, lemma_count
 
@@ -83,6 +83,6 @@ def get_dist_stats(book_chunk: Doc) -> Dict[str, Counter]:
     }
     for sent in book_chunk.sentences:
         dist_stats['sent_length'].update([len(sent.tokens)])
-        dist_stats['word_length'].update([len(token.word) for token in sent.tokens])
+        dist_stats['word_length'].update([len(token.text) for token in sent.tokens])
         dist_stats['lemma_length'].update([len(token.lemma) for token in sent.tokens])
     return dist_stats
