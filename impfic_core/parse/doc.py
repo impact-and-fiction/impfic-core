@@ -278,11 +278,11 @@ def spacy_json_to_doc(doc_json: Dict[str, any]) -> Doc:
     return Doc(text=doc_json['text'], sentences=sentences)
 
 
-def trankit_json_to_doc(doc_json: Dict[str, any]) -> Doc:
+def trankit_json_to_doc(doc_json: Dict[str, any], skip_bad_tokens: bool = False) -> Doc:
     sentences = []
     token_offset = 0
     for sent_json in doc_json['sentences']:
-        sent = trankit_json_to_sentence(token_offset, sent_json)
+        sent = trankit_json_to_sentence(token_offset, sent_json, skip_bad_tokens=skip_bad_tokens)
         token_offset += len(sent_json['tokens'])
         sentences.append(sent)
     return Doc(text=doc_json['text'], sentences=sentences)

@@ -167,6 +167,8 @@ class Pattern:
         # elif head_token.id == head_id and not self.is_verb(head_token):
         #     print('\ttoken head is token id AND thead_token is not a verb')
         #     return -1
+        elif head_token.id == head_id:
+            return head_id
         else:
             # print('\trecursing to head of head_token')
             return self.get_head_verb_id(head_token.head, tokens)

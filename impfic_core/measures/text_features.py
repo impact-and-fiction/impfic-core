@@ -4,10 +4,13 @@ related to word usage in fiction novels.  """
 import glob
 import gzip
 import json
-import numpy as np
 import os
-import pandas as pd
+import re
+from collections import defaultdict
 from typing import List, Tuple, Union
+
+import numpy as np
+import pandas as pd
 from tqdm import tqdm
 
 from impfic_core.api import Doc
@@ -16,35 +19,48 @@ from impfic_core.api import Pattern, get_lang_patterns
 
 
 # load
-def get_book_chunk_files(isbn: str, data_dir: str) -> list[str]:
+def get_book_chunk_files(book_id: str, data_dir: str, parser: str = 'trankit') -> list[str]:
     """
-    Helper function to find .json.gz files for a given ISBN within a specified directory.
+    Helper function to find .json.gz files for a given subdirectory (identified by book id) 
+    within the data directory.
 
     Args:
-        isbn (str): The ISBN of the book.
+        book_id (str): The identifier of the book.
         data_dir (str): The directory path to search for book chunk files.
 
     Returns:
         List[str]: A list of paths to the book chunk files.
     """
-    return glob.glob(os.path.join(data_dir, f'{isbn}/*.json.gz'))
+    return glob.glob(os.path.join(data_dir, f'{book_id}/*.{parser}.json.gz'))
 
 
-def load_book_chunks(data_dir: str) -> list[str]:
+def load_book_chunks(data_dir: str, max_items: int = None) -> list[str]:
     """
     Loads and filters book chunks based on the presence of
     JSON.GZ files within each book's directory.
 
     Args:
         data_dir (str): The directory to search for book data.
+        max_items (int): The maximum number of books to load.
 
     Returns:
         List[str]: A list of ISBNs for books with available data.
     """
     book_dirs = glob.glob(os.path.join(data_dir, '*'))
-    isbns = [os.path.split(book_dir)[-1] for book_dir in book_dirs]
-    parsed_isbns = [isbn for isbn in isbns if len(get_book_chunk_files(isbn, data_dir)) > 0]
-    return parsed_isbns
+    if max_items is not None:
+        book_dirs = book_dirs[:max_items]
+    book_ids = [os.path.split(book_dir)[-1] for book_dir in book_dirs]
+    book_subdirs = [book_id for book_id in book_ids if len(get_book_chunk_files(book_id, data_dir)) > 0]
+    isbn_chunk_files = defaultdict(list)
+    for book_subdir in book_subdirs:
+        book_chunk_files = get_book_chunk_files(book_subdir, data_dir)
+        for book_chunk_file in book_chunk_files:
+            if match := re.search(r"_(978\d{9}[0-9Xx])\b", book_chunk_file):
+                isbn = match.group(1)
+                isbn_chunk_files[isbn].append(book_chunk_file)
+            else:
+                raise ValueError(f"cannot identify ISBN in chunk filename: {book_chunk_file}")
+    return isbn_chunk_files
 
 
 # analyse
@@ -77,18 +93,18 @@ def read_book_chunk_files(book_chunk_files: list[str]) -> dict:
         yield read_book_chunk_file(book_chunk_file)
 
 
-def get_all_book_stats(parsed_isbns: list[str], data_dir: str, lang: str):
+def get_all_book_stats(isbn_chunk_files: list[str], lang: str):
     """Overarching function that extracts books' stats"""
     all_stats = []
     pattern = get_lang_patterns(lang)
     # add progress bar
-    for isbn in tqdm(parsed_isbns, desc="Processing Books"):
-        book_stats = get_book_stats(isbn, data_dir, pattern)
+    for isbn in tqdm(isbn_chunk_files, desc="Processing Books"):
+        book_stats = get_book_stats(isbn, isbn_chunk_files[isbn], pattern)
         all_stats.append(book_stats)
     return all_stats
 
 
-def get_book_stats(isbn: str, data_dir: str, pattern: Pattern) -> list[Union[str, int, float]]:
+def get_book_stats(isbn: str, book_chunk_files, pattern: Pattern) -> list[Union[str, int, float]]:
     """
     Gets book statistics
 
@@ -97,9 +113,8 @@ def get_book_stats(isbn: str, data_dir: str, pattern: Pattern) -> list[Union[str
         various statistics for the book, including counts and measures of sentence
         length as integers and floats.
     """
-    book_chunk_files = get_book_chunk_files(isbn, data_dir)
     book_chunks = [book_chunk for book_chunk in read_book_chunk_files(book_chunk_files)]
-    book_docs = [trankit_json_to_doc(book_chunk) for book_chunk in book_chunks]
+    book_docs = [trankit_json_to_doc(book_chunk, skip_bad_tokens=True) for book_chunk in book_chunks]
     total, present, past, pv, clause_count, presp, pastp, press, pasts = get_verb_count(book_docs, pattern)
     num_tokens, num_sents, sent_len_mean, sent_len_median, sent_len_stdev, unique_tokens = get_length_stats(book_docs)
     pron_count, propn_count, det_count = get_funcword_count(book_docs)
@@ -148,11 +163,18 @@ def get_verb_count(book_docs: List[Doc], pattern: Pattern) -> tuple:
 
     sentences = [sent for doc in book_docs for sent in doc.sentences]
     # print('number of sentences:', len(sentences))
-    clauses = [clause for sent in sentences for clause in pattern.get_verb_clauses(sent)]
+    doc_clauses = []
+    for sent in sentences:
+        try:
+            clauses = pattern.get_verb_clauses(sent)
+            doc_clauses.extend(clauses)
+        except RecursionError:
+            continue
+    # clauses = [clause for sent in sentences for clause in pattern.get_verb_clauses(sent)]
     # print('number of clauses:', len(clauses))
-    clause_count = len(clauses)
+    clause_count = len(doc_clauses)
 
-    for clause in clauses:
+    for clause in doc_clauses:
         present_perfect_count += pattern.is_present_perfect_clause(clause)
         past_perfect_count += pattern.is_past_perfect_clause(clause)
         present_simple_count += pattern.is_present_simple_clause(clause)
@@ -235,7 +257,7 @@ def get_gramword_count(book_docs: List[Doc]) -> Tuple[int, int, int]:
     return sconj_count, cconj_count, punct_count
 
 
-def extract_text_features(data_dir: str, lang: str, max_items: int = None) -> pd.DataFrame:
+def extract_text_features(data_dir: str, lang: str = 'nl', max_items: int = None) -> pd.DataFrame:
     """
     Extracts various text features from book docs for a list of books identified by their ISBNs.
     Features include verb counts, sentence length statistics, functional word counts, POS word counts,
@@ -251,12 +273,9 @@ def extract_text_features(data_dir: str, lang: str, max_items: int = None) -> pd
     """
 
     print("1 - load book docs")
-    parsed_isbns = load_book_chunks(data_dir)
-    if max_items is not None:
-        # subset
-        parsed_isbns = parsed_isbns[:max_items]
+    isbn_chunk_files = load_book_chunks(data_dir, max_items=max_items)
     print("2 - get all book stats")
-    all_stats = get_all_book_stats(parsed_isbns, data_dir, lang)
+    all_stats = get_all_book_stats(isbn_chunk_files, lang)
     print("3 - assign name columns")
     columns = [
         'isbn', 'total_verbs', 'all_present_verbs', 'all_past_verbs', 'pv_verbs',
