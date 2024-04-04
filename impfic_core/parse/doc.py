@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass, field
 from typing import Dict, List
 
@@ -22,6 +23,9 @@ class Token:
     def __len__(self):
         return len(self.text)
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}(id={self.id}, text={self.text}, upos={self.upos}, xpos='{self.xpos}')"
+
 
 @dataclass
 class Entity:
@@ -38,6 +42,13 @@ class Clause:
 
     id: int
     tokens: List[Token]
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(id={self.id}, tokens={self.tokens})"
+
+    def __iter__(self):
+        for token in self.tokens:
+            yield token
 
 
 @dataclass

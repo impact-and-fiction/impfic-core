@@ -100,10 +100,16 @@ class Pattern:
         return [token for token in sequence_to_list(sequence) if token.upos == 'PRON']
 
     def has_aux_past(self, sequence: Union[Sentence, Clause, List[Token]]):
-        return any(self.is_past_tense(token) for token in self.get_perfect_aux_verbs(sequence))
+        if any(self.is_past_tense(token) for token in sequence) is True:
+            return any(self.is_perfect_aux(token) for token in sequence)
+        else:
+            return False
 
     def has_aux_present(self, sequence: Union[Sentence, Clause, List[Token]]):
-        return any(self.is_present_tense(token) for token in self.get_perfect_aux_verbs(sequence))
+        if any(self.is_present_tense(token) for token in sequence) is True:
+            return any(self.is_perfect_aux(token) for token in sequence)
+        else:
+            return False
 
     def is_perfect_tense_clause(self, clause: Clause):
         """Language specific."""

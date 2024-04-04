@@ -67,6 +67,15 @@ class PatternNL(Pattern):
     def _has_verb_inf(self, verbs: List[Token]) -> bool:
         return any(self.is_infinitive_verb(token) for token in verbs)
 
+    def _has_verb_finite(self, verbs: List[Token]) -> bool:
+        return any(self.is_finite_verb(token) for token in verbs)
+
+    def is_present_tense_clause(self, clause: Clause):
+        return any(self.is_present_tense(token) for token in clause)
+
+    def is_past_tense_clause(self, clause: Clause):
+        return any(self.is_past_tense(token) for token in clause)
+
     def is_perfect_tense_clause(self, clause: Clause):
         if isinstance(clause, Clause) is False:
             raise TypeError(f"past perfect can only be determined for Clause, not for {type(clause)}")
@@ -79,7 +88,10 @@ class PatternNL(Pattern):
         return False
 
     def is_simple_tense_clause(self, clause: Clause):
-        return self.is_perfect_tense_clause(clause) is False
+        verbs = self.get_verbs(clause)
+        if len(verbs) == 0:
+            return False
+        return self.is_perfect_tense_clause(clause) is False and self._has_verb_finite(verbs)
 
     def is_past_perfect_clause(self, clause: Clause):
         return self.is_perfect_tense_clause(clause) and self.has_aux_past(clause)
