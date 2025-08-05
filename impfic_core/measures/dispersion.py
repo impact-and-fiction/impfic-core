@@ -14,7 +14,9 @@ def compute_percentages(part_sizes: List[int]) -> List[float]:
 
 
 def compute_dispersion(part_sizes: List[int], part_freqs: List[int]) -> float:
-    """Compute the observed percentages of a token per corpus part.
+    """Compute the deviation of proportions measure (DP) introduced by Stefan Gries in
+    "Dispersions and adjusted frequencies in corpora". International Journal of
+    Corpus Linguistics, 13 (4), 403-437.
 
     Example:
 
@@ -44,6 +46,8 @@ def compute_dispersion(part_sizes: List[int], part_freqs: List[int]) -> float:
 
     (0.1 + 0.0 + 0.0 + 0.1) / 2 = 0.2 / 2 = 0.1
 
+    :param part_sizes: the list of sizes per part (in number of tokens).
+    :type part_sizes: List[int]
     :param part_freqs: the list of frequencies of a token per corpus part.
     :type part_freqs: List[int]
     :return: a list of observed percentages per corpus part.
@@ -54,8 +58,14 @@ def compute_dispersion(part_sizes: List[int], part_freqs: List[int]) -> float:
                    f"part_freqs ({len(part_freqs)}).")
     expected = compute_percentages(part_sizes)
     observed = compute_percentages(part_freqs)
-    print('expected:', expected)
-    print('observed:', observed)
     diffs = [abs(exp - obs) for exp, obs in zip(expected, observed)]
-    print('diffs:', diffs)
     return sum(diffs) / 2
+
+
+def compute_dp_norm(part_sizes: List[int], part_freqs: List[int]) -> float:
+    """Compute the normalised deviation of proportions measure."""
+    expected = compute_percentages(part_sizes)
+    observed = compute_percentages(part_freqs)
+    diffs = [abs(exp - obs) for exp, obs in zip(expected, observed)]
+    dp = sum(diffs) / 2
+    return dp / (1 - min(expected))

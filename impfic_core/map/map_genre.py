@@ -33,7 +33,7 @@ NUR_MAPPINGS = {
     284: "Young_adult",
     285: "Young_adult",
     342: "Historical_fiction",
-    343: "Romanticism",
+    343: "Romance",
     344: "Regional_fiction"
 }
 
@@ -93,8 +93,9 @@ def map_genre(nurs):
     return None
 
 
-def make_work_genre_map():
-    genre_file = '../../data/book_metadata/work_isbn_title_genre.tsv.gz'
+def make_work_genre_map(genre_file: str = None):
+    if genre_file is None:
+        genre_file = '../../data/book_metadata/work_isbn_title_genre.tsv.gz'
 
     genre_fields = [
         'nur', 'thema', 'bisac', 'brinkman', 'unesco'

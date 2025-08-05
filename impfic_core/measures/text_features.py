@@ -7,7 +7,7 @@ import json
 import os
 import re
 from collections import defaultdict
-from typing import List, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -27,6 +27,7 @@ def get_book_chunk_files(book_id: str, data_dir: str, parser: str = 'trankit') -
     Args:
         book_id (str): The identifier of the book.
         data_dir (str): The directory path to search for book chunk files.
+        parser (str): The parser used for generating the parse trees ('trankit' or 'spacy')
 
     Returns:
         List[str]: A list of paths to the book chunk files.
@@ -34,7 +35,7 @@ def get_book_chunk_files(book_id: str, data_dir: str, parser: str = 'trankit') -
     return glob.glob(os.path.join(data_dir, f'{book_id}/*.{parser}.json.gz'))
 
 
-def load_book_chunks(data_dir: str, max_items: int = None) -> list[str]:
+def load_book_chunks(data_dir: str, max_items: int = None) -> Dict[str, List[str]]:
     """
     Loads and filters book chunks based on the presence of
     JSON.GZ files within each book's directory.
@@ -79,7 +80,7 @@ def read_book_chunk_file(book_chunk_file: str) -> dict:
     return book_chunk
 
 
-def read_book_chunk_files(book_chunk_files: list[str]) -> dict:
+def read_book_chunk_files(book_chunk_files: List[str]) -> dict:
     """
     Generator function that yields the content of each book chunk file as a dictionary.
 
@@ -93,7 +94,7 @@ def read_book_chunk_files(book_chunk_files: list[str]) -> dict:
         yield read_book_chunk_file(book_chunk_file)
 
 
-def get_all_book_stats(isbn_chunk_files: list[str], lang: str):
+def get_all_book_stats(isbn_chunk_files: Dict[str, List[str]], lang: str):
     """Overarching function that extracts books' stats"""
     all_stats = []
     pattern = get_lang_patterns(lang)
@@ -104,7 +105,7 @@ def get_all_book_stats(isbn_chunk_files: list[str], lang: str):
     return all_stats
 
 
-def get_book_stats(isbn: str, book_chunk_files: str, pattern: PatternNL) -> list[Union[str, int, float]]:
+def get_book_stats(isbn: str, book_chunk_files: List[str], pattern: PatternNL) -> list[Union[str, int, float]]:
     """
     Gets book statistics
 
@@ -154,6 +155,61 @@ def get_length_stats(book_docs: List[Doc]):
     sent_len_median = np.median(sentence_lengths)
     sent_len_stdev = sentence_lengths.std()
     return num_tokens, num_sents, sent_len_mean, sent_len_median, sent_len_stdev, unique_tokens_count
+
+
+def classify_clause_tense(clause, pattern: PatternNL):
+    tense = 'no_tense'
+    if pattern.is_present_tense_clause(clause):
+        tense = 'present'
+        if pattern.is_past_tense_clause(clause):
+            tense = 'both_tense'
+    elif pattern.is_past_tense_clause(clause):
+        tense = 'past'
+    return tense
+
+
+def classify_clause_aspect(clause, pattern: PatternNL):
+    aspect = 'no_aspect'
+    if pattern.is_perfect_tense_clause(clause):
+        aspect = "perfect"
+        if pattern.is_simple_tense_clause(clause):
+            aspect = 'both_aspect'
+    elif pattern.is_simple_tense_clause(clause):
+        aspect = "simple"
+    return aspect
+
+
+def get_all_book_tense_aspects(isbn_chunk_files: Dict[str, List[str]], out_dir: str, lang: str):
+    """Overarching function that extracts tense aspects per clause for a list of books."""
+    all_tense_aspects = []
+    columns = ['book_id', 'chunk_num', 'sent_num', 'clause_num', 'tense', 'aspects']
+    pattern = get_lang_patterns(lang)
+    # add progress bar
+    if os.path.exists(out_dir) is False:
+        os.mkdir(out_dir)
+    for isbn in tqdm(isbn_chunk_files, desc="Processing Books"):
+        out_file = os.path.join(out_dir, f'tense_aspect-isbn_{isbn}.tsv.gz')
+        book_chunks = [book_chunk for book_chunk in read_book_chunk_files(isbn_chunk_files[isbn])]
+        book_docs = [trankit_json_to_doc(book_chunk, skip_bad_tokens=True) for book_chunk in book_chunks]
+        book_tense_aspects = classify_book_clauses(isbn, book_docs, pattern)
+        df = pd.DataFrame(book_tense_aspects, columns=columns)
+        df.to_csv(out_file, sep='\t', compression='gzip', index=False)
+        all_tense_aspects.extend(book_tense_aspects)
+    return all_tense_aspects
+
+
+def classify_book_clauses(book_id: str, book_docs: List[Doc], pattern: PatternNL):
+    """Classify the tense and aspect of each clause in a book, keeping track of
+    chunk number, sentence number and clause number."""
+    book_tense_aspects = []
+    for di, doc in enumerate(book_docs):
+        for si, sent in enumerate(doc.sentences):
+            for ci, clause in enumerate(pattern.get_verb_clauses(sent)):
+                tense = classify_clause_tense(clause, pattern)
+                aspect = classify_clause_aspect(clause, pattern)
+                row = [book_id, di, si, ci, tense, aspect]
+                book_tense_aspects.append(row)
+    return book_tense_aspects
 
 
 def get_verb_count(book_docs: List[Doc], pattern: PatternNL) -> tuple:
@@ -207,7 +263,6 @@ def get_verb_count(book_docs: List[Doc], pattern: PatternNL) -> tuple:
             both_tense_count += 1
         if pattern.is_perfect_tense_clause(clause) and pattern.is_simple_tense_clause(clause):
             both_aspect_count += 1
-
 
         # present_perfect_count += pattern.is_present_perfect_clause(clause)
         # past_perfect_count += pattern.is_past_perfect_clause(clause)
@@ -290,6 +345,30 @@ def get_gramword_count(book_docs: List[Doc]) -> Tuple[int, int, int]:
                 punct_count += 1
 
     return sconj_count, cconj_count, punct_count
+
+
+def extract_tense_aspect_features(data_dir: str, out_dir: str, lang: str = 'nl', max_items: int = None) -> pd.DataFrame:
+    """
+    Extracts tense and aspect per clasuse from book docs for a list of books identified by their ISBNs.
+
+    Args:
+        data_dir (str): The directory where book data is stored.
+        out_dir (str): The directory where the tense/aspect data will be stored.
+        lang (str): The language of the books
+        max_items (int): Optional. How many books you want to extract
+
+    Returns:
+        pd.DataFrame: dataframe that contains the tense and aspect for each clause of a book.
+    """
+
+    print("1 - load book docs")
+    isbn_chunk_files = load_book_chunks(data_dir, max_items=max_items)
+    print("2 - get all book stats")
+    all_tense_aspects = get_all_book_tense_aspects(isbn_chunk_files, out_dir, lang)
+    print("3 - assign name columns")
+    columns = ['book_id', 'chunk_num', 'sent_num', 'clause_num', 'tense', 'aspects']
+    print("4 - save dataframe")
+    return pd.DataFrame(all_tense_aspects, columns=columns)
 
 
 def extract_text_features(data_dir: str, lang: str = 'nl', max_items: int = None) -> pd.DataFrame:
