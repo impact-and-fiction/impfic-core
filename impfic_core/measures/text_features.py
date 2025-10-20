@@ -194,7 +194,7 @@ def get_all_book_tense_aspects(isbn_chunk_files: Dict[str, List[str]], out_dir: 
         book_tense_aspects = classify_book_clauses(isbn, book_docs, pattern)
         df = pd.DataFrame(book_tense_aspects, columns=columns)
         df.to_csv(out_file, sep='\t', compression='gzip', index=False)
-        all_tense_aspects.extend(book_tense_aspects)
+        # all_tense_aspects.extend(book_tense_aspects)
     return all_tense_aspects
 
 
