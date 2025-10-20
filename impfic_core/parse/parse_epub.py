@@ -1,14 +1,15 @@
+import glob
+import gzip
+import json
 import os
 from collections import Counter
-from enum import Enum
-from typing import Dict, List, Union
-from xml.parsers.expat import ExpatError
-from zipfile import BadZipfile
 
 import ebooklib
 from ebooklib import epub as lib_epub
-from ebooklib.epub import EpubException
 from bs4 import BeautifulSoup
+
+from book_model import ElementType, BookItem, BookContent
+from book_model import TextElement, TableCell, TableElement, TableRow
 
 HEADER_ELEMENTS = {'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8'}
 TEXT_ELEMENTS = {
@@ -26,318 +27,11 @@ LIST_ELEMENTS = {
     'aa', 'nn'
 }
 
-
-class ElementType(Enum):
-    TEXT = 1
-    HEADER = 2
-    TABLE = 3
-    METADATA = 4
-    OTHER = 5
-
-
-element_type_map = {
-    ElementType.TEXT: 'text',
-    ElementType.HEADER: 'header',
-    ElementType.TABLE: 'table',
-    ElementType.METADATA: 'metadata',
-    ElementType.OTHER: 'other',
-}
-
-element_type_inverse_map = {element_type_map[key]: key for key in element_type_map}
-
 element_mistake_map = {
     'p.': 'div'
 }
 
-
-class BookElement:
-
-    def __init__(self, element_id: str, element_type: ElementType, name: Union[str, None]):
-        self.element_id = element_id
-        self.name = name
-        self.element_type = element_type
-
-    def __repr__(self):
-        return f"BookElement(element_type='{element_type_map[self.element_type]}', name='{self.name}'"
-
-    @property
-    def json(self):
-        return {
-            'element_id': self.element_id,
-            'name': self.name,
-            'element_type': element_type_map[self.element_type]
-        }
-
-    @staticmethod
-    def from_json(json_data: Dict[str, any]):
-        return BookElement(element_id=json_data['element_id'],
-                           element_type=element_type_inverse_map[json_data['element_type']],
-                           name=json_data['name'])
-
-
-class TextElement(BookElement):
-
-    def __init__(self, element_id: str, element_type: ElementType, name: Union[str, None],
-                 text: str, parsed_text: Dict[str, any] = None):
-        super().__init__(element_id=element_id, element_type=element_type, name=name)
-        self.text = text if text is not None else ''
-        self.parsed_text = parsed_text
-
-    def __repr__(self):
-        return (f"BookElement(element_type='{element_type_map[self.element_type]}', name='{self.name}',"
-                f"text=\"{self.text[:100]}\"")
-
-    def __len__(self):
-        return len(self.text)
-
-    @property
-    def json(self):
-        element_json = super().json
-        element_json['text'] = self.text
-        element_json['parsed_text'] = self.parsed_text
-        return element_json
-
-    @staticmethod
-    def from_json(json_data: Dict[str, any]):
-        return TextElement(element_id=json_data['element_id'],
-                           element_type=json_data['element_type'], name=json_data['name'],
-                           text=json_data['text'], parsed_text=json_data['parsed_text'])
-
-
-def is_content_type(element_type: ElementType):
-    return element_type in {ElementType.TABLE, ElementType.TEXT, ElementType.HEADER}
-
-
-def is_content_element(element: BookElement):
-    return is_content_type(element.element_type)
-
-
-class TableCell:
-
-    def __init__(self, cell_type: Union[str, None], text: str):
-        self.cell_type = cell_type
-        self.text = text
-
-    def __len__(self):
-        if self.text is None:
-            return 0
-        else:
-            return len(self.text)
-
-    @property
-    def length(self):
-        return len(self)
-
-    @property
-    def structured_text(self):
-        return f"| {self.text} |"
-
-    @property
-    def json(self):
-        return {
-            'cell_type': self.cell_type,
-            'text': self.text
-        }
-
-    @staticmethod
-    def from_json(json_data: Dict[str, any]):
-        return TableCell(cell_type=json_data['cell_type'],
-                         text=json_data['text'])
-
-
-class TableRow:
-
-    def __init__(self, row_type: str, cells: List[TableCell]):
-        if row_type not in {'header', 'data'}:
-            raise ValueError(f"'row_type' must be one of ['header', 'data'], not '{row_type}'")
-        self.row_type = row_type
-        self.cells = cells
-
-    def __len__(self):
-        return sum([len(cell) for cell in self.cells])
-
-    @property
-    def length(self):
-        return len(self)
-
-    @property
-    def text(self):
-        return ' '.join([cell.text for cell in self.cells])
-
-    @property
-    def structured_text(self):
-        return "| ".join([cell.text for cell in self.cells]) + " |"
-
-    @property
-    def json(self):
-        return {
-            'row_type': self.row_type,
-            'cells': [cell.json for cell in self.cells]
-        }
-
-    @staticmethod
-    def from_json(json_data: Dict[str, any]):
-        cells = [TableCell.from_json(cell_json) for cell_json in json_data['cells']]
-        return TableRow(row_type=json_data['row_type'],
-                        cells=cells)
-
-
-class TableElement(TextElement):
-
-    def __init__(self, element_id: str, rows: List[TableRow]):
-        text = '\n'.join([row.text for row in rows])
-        super().__init__(element_id=element_id, element_type=ElementType.TABLE, name='table', text=text)
-        self.rows = rows
-
-    def __len__(self):
-        return sum(row.length for row in self.rows)
-
-    @property
-    def length(self):
-        return len(self)
-
-    @property
-    def table_text(self):
-        return '\n'.join([row.text for row in self.rows])
-
-    @property
-    def structured_text(self):
-        table_text = ''
-        for row in self.rows:
-            table_text += row.structured_text
-            if row.row_type == 'header':
-                table_text += ''.join(['-'] * len(row.structured_text))
-        return table_text
-
-    @property
-    def json(self):
-        element_json = super().json
-        element_json['rows'] = [row.json for row in self.rows]
-        return element_json
-
-    @staticmethod
-    def from_json(json_data: Dict[str, any]):
-        rows = [TableRow.from_json(row_json) for row_json in json_data['rows']]
-        return TableElement(element_id=json_data['element_id'],
-                            rows=rows)
-
-
-class BookItem:
-
-    def __init__(self, item_id: str, name: str, item_type, book_elements: List[BookElement] = None):
-        self.item_id = item_id
-        self.name = name
-        self.item_type = item_type
-        self.book_elements = book_elements
-
-    def __repr__(self):
-        elements_strings = "\n".join([f"\t{ele}" for ele in self.book_elements])
-        return (f"{self.__class__.__name__}(item_type='{self.item_type}', name='{self.name}',"
-                f"book_elements=\n\t{elements_strings}")
-
-    @property
-    def content_elements(self):
-        return [ele for ele in self.book_elements if is_content_element(ele)]
-
-    @property
-    def text_elements(self):
-        return [ele for ele in self.book_elements if isinstance(ele, TextElement)]
-
-    @property
-    def text_length(self):
-        return sum(len(ele.text) for ele in self.text_elements)
-
-    @property
-    def content_length(self):
-        return sum(len(ele.text) for ele in self.content_elements)
-
-    @property
-    def text(self):
-        return '\n'.join([ele.text for ele in self.content_elements])
-
-    @property
-    def structured_text(self):
-        structured_text = f"    <item id=\"{self.item_id}\" name=\"{self.name}\">\n"
-        for ele in self.book_elements:
-            if ele.element_type == ElementType.HEADER:
-                structured_ele_text = f"<header name=\"{ele.name}\">{ele.text}</header>"
-                structured_text += f"        {structured_ele_text}\n"
-            if ele.element_type == ElementType.TEXT:
-                structured_ele_text = f"<p element_type=\"{ele.element_type}\" name=\"{ele.name}\">{ele.text}</p>"
-                structured_text += f"        {structured_ele_text}\n"
-            elif ele.element_type == ElementType.TABLE:
-                structured_ele_text = f"<table>{ele.text}</table>"
-                structured_text += f"        {structured_ele_text}\n"
-            else:
-                continue
-        structured_text += "    </item>\n"
-        return structured_text
-
-    @property
-    def json(self):
-        return {
-            'item_id': self.item_id,
-            'item_type': self.item_type,
-            'name': self.name,
-            'book_elements': [element.json for element in self.book_elements]
-        }
-
-    @staticmethod
-    def from_json(json_data: Dict[str, any]):
-        book_elements = []
-        for element_json in json_data['book_elements']:
-            if element_json['element_type'] == ElementType.TABLE:
-                element = TableElement.from_json(element_json)
-            elif is_content_type(element_json['element_type']):
-                element = TextElement.from_json(element_json)
-            else:
-                element = BookElement.from_json(element_json)
-            book_elements.append(element)
-        return BookItem(item_id=json_data['item_id'], name=json_data['name'],
-                        item_type=json_data['item_type'], book_elements=book_elements)
-
-
-class BookContent:
-
-    def __init__(self, book_id: str, book_items: List[BookItem] = None,
-                 metadata: Dict[str, any] = None):
-        self.book_id = book_id
-        self.book_items = book_items
-        self.metadata = metadata
-
-    @property
-    def length(self):
-        return sum(item.length for item in self.book_items)
-
-    @property
-    def text(self):
-        return '\n'.join([item.text for item in self.book_items])
-
-    @property
-    def content_elements(self):
-        return [ele for item in self.book_items for ele in item.book_elements if is_content_element(ele)]
-
-    @property
-    def structured_text(self):
-        structured_text = "<book>\n"
-        for item in self.book_items:
-            structured_text += item.structured_text
-        structured_text += "</book>"
-        return structured_text
-
-    @property
-    def json(self):
-        return {
-            'book_id': self.book_id,
-            'book_items': [item.json for item in self.book_items],
-            'metadata': self.metadata
-        }
-
-    @staticmethod
-    def from_json(json_data: Dict[str, any]):
-        book_items = [BookItem.from_json(item_json) for item_json in json_data['book_items']]
-        return BookContent(book_id=json_data['book_id'],
-                           book_items=book_items, metadata=json_data['metadata'])
+DC_URL = 'http://purl.org/dc/elements/1.1/'
 
 
 def make_element(element_id: str, child, text: str = None):
@@ -497,9 +191,9 @@ def get_book_items(book: lib_epub.EpubBook, book_id: str = None):
 def get_book_metadata(epub: lib_epub.EpubBook, epub_file: str):
     if hasattr(epub, 'metadata') is False:
         raise AttributeError(f"epub has no property 'metadata' in file {epub_file}")
-    if 'http://purl.org/dc/elements/1.1/' not in epub.metadata:
-        raise KeyError(f"key 'http://purl.org/dc/elements/1.1/' not in epub.metadata in file {epub_file}")
-    meta = epub.metadata['http://purl.org/dc/elements/1.1/']
+    if DC_URL not in epub.metadata:
+        raise KeyError(f"key {DC_URL} not in epub.metadata in file {epub_file}")
+    meta = epub.metadata[DC_URL]
     metadata = {}
     for field in meta:
         if isinstance(meta[field], list):
@@ -509,9 +203,11 @@ def get_book_metadata(epub: lib_epub.EpubBook, epub_file: str):
     return metadata
 
 
-def get_book(epub_file: str, ignore_epub_errors: bool = False):
-    epub = read_epub(epub_file, ignore_epub_errors=ignore_epub_errors)
-    if epub is None:
+def get_book(epub_file: str, error_skip_log_file: str):
+    try:
+        epub = lib_epub.read_epub(epub_file)
+    except BaseException as err:
+        write_unparsable(epub_file, err, error_skip_log_file)
         return None
     metadata = get_book_metadata(epub, epub_file)
     if 'identifier' in metadata:
@@ -524,50 +220,59 @@ def get_book(epub_file: str, ignore_epub_errors: bool = False):
         book_id, _ = os.path.splitext(filename)
     try:
         book_items = get_book_items(epub, book_id)
-    except (TypeError, ValueError):
-        print(epub_file)
-        raise
+    except (TypeError, ValueError) as err:
+        print(f"WARNING - Error getting book items from {epub_file}")
+        write_unparsable(epub_file, err, error_skip_log_file)
+        return None
     return BookContent(book_id, book_items=book_items, metadata=metadata)
 
 
-def read_epub(epub_file: str, ignore_epub_errors: bool = False):
-    if ignore_epub_errors is True:
-        try:
-            return lib_epub.read_epub(epub_file)
-        except BadZipfile:
-            print('BadZipfile:', os.path.split(epub_file)[-1])
-        except EpubException:
-            print('EpubException:', os.path.split(epub_file)[-1])
-        except ExpatError:
-            print('ExpatError:', os.path.split(epub_file)[-1])
-        except SyntaxWarning:
-            print('SyntaxWarning:', os.path.split(epub_file)[-1])
-        except AttributeError:
-            print('AttributeError:', os.path.split(epub_file)[-1])
-        except KeyError:
-            print('KeyError:', os.path.split(epub_file)[-1])
-        except TypeError:
-            print('TypeError:', os.path.split(epub_file)[-1])
-            raise
-        except IndexError:
-            print('IndexError:', os.path.split(epub_file)[-1])
-            raise
-        except BaseException as err:
-            print('UnknownError:', os.path.split(epub_file)[-1])
-            print(err)
-        print(epub_file)
-        return None
-    else:
-        return lib_epub.read_epub(epub_file)
+def read_unparsable_log(log_file: str):
+    unparsable = []
+    if os.path.exists(log_file) is False:
+        with open(log_file, 'wt') as fh:
+            headers = ['epub_file', 'error']
+            header_string = "\t".join(headers)
+            fh.write(f"{header_string}\n")
+    with open(log_file, 'rt') as fh:
+        # first line is header
+        next(fh)
+        for line in fh:
+            epub_file, _ = line.strip('\n').split('\t')
+            unparsable.append(epub_file)
+    return unparsable
 
 
-def main(epub_files: List[str]):
-    for epub_file in epub_files:
-        book_content = get_book(epub_file, ignore_epub_errors=True)
+def write_unparsable(epub_file: str, err: BaseException, log_file):
+    row = f"{epub_file}\t{err}"
+    with open(log_file, 'at') as fh:
+        fh.write(f"{row}\n")
+
+
+def main(epub_dir: str, json_dir: str, error_skip_log_file: str):
+    epub_files = glob.glob(os.path.join(epub_dir, '**/**/**/*.epub'))
+    print(f"number of epub files: {len(epub_files)}")
+    error_skip_files = read_unparsable_log(error_skip_log_file)
+    for ei, epub_file in enumerate(epub_files):
+        base_name = os.path.split(epub_file)[-1]
+        json_file = os.path.join(json_dir, f"{base_name}.json.gz")
+        if os.path.exists(json_file):
+            continue
+        elif epub_file in error_skip_files:
+            continue
+        book_content = get_book(epub_file, error_skip_log_file)
+        if book_content is None:
+            error_skip_files.append(epub_file)
+            print(f"No book_content for {epub_file}")
+        else:
+            with gzip.open(json_file, 'wt') as fh:
+                fh.write(json.dumps(book_content.json))
+        if (ei + 1) % 10 == 0:
+            print(f"{ei + 1} of {len(epub_files)} epubs processed")
 
 
 if __name__ == "__main__":
-    test_file = ('/Volumes/Samsung_T5/Data/ImpFic/books/nlepub/nlepub/'
-                 '10.000 nederlandse E-book nl A.rar Folder/A. L. G. Bosboom-Toussaint/'
-                 'Majoor Frans (4395)/Majoor Frans - A. L. G. Bosboom-Toussaint.epub')
-    main([test_file])
+    unparsable_file = '../../../data/books/unparsable_epubs.tsv'
+    input_dir = '../../../data/books/epub/'
+    output_dir = '../../../data/books/epub_json/'
+    main(input_dir, output_dir, unparsable_file)
