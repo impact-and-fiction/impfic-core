@@ -151,14 +151,20 @@ class PatternNL(Pattern):
     def get_head_finite_verb_id(self, head_id: int, tokens: List[Token]) -> int:
         """Find the nearest head verb that is finite, or the root of the sentence."""
         head_verb = tokens[head_id]
-        if head_verb.deprel == 'root':
-            return head_id
-        if head_id == -1:
-            return head_id
-        if self.is_finite_verb(head_verb):
-            return head_id
-        else:
-            return self.get_head_finite_verb_id(head_verb.head, tokens)
+        try:
+            if head_verb.deprel == 'root':
+                return head_id
+            if head_id == -1:
+                return head_id
+            if self.is_finite_verb(head_verb):
+                return head_id
+            if head_verb == tokens[head_verb.head]:
+                return head_id
+            else:
+                return self.get_head_finite_verb_id(head_verb.head, tokens)
+        except RecursionError:
+            print(f"head_verb: {head_verb}\ttokens: {len(tokens)}")
+            raise
 
     def group_tokens_by_finite_verb(self, tokens: List[Token], copy_conj_subject: bool = False,
                                     debug: int = 0):
