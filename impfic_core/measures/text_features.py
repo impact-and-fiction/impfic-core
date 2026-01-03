@@ -181,7 +181,6 @@ def classify_clause_aspect(clause, pattern: PatternNL):
 
 def get_all_book_tense_aspects(isbn_chunk_files: Dict[str, List[str]], out_dir: str, lang: str):
     """Overarching function that extracts tense aspects per clause for a list of books."""
-    all_tense_aspects = []
     columns = ['book_id', 'chunk_num', 'sent_num', 'clause_num', 'tense', 'aspects']
     pattern = get_lang_patterns(lang)
     # add progress bar
@@ -189,13 +188,15 @@ def get_all_book_tense_aspects(isbn_chunk_files: Dict[str, List[str]], out_dir: 
         os.mkdir(out_dir)
     for isbn in tqdm(isbn_chunk_files, desc="Processing Books"):
         out_file = os.path.join(out_dir, f'tense_aspect-isbn_{isbn}.tsv.gz')
+        if os.path.exists(out_file):
+            continue
         book_chunks = [book_chunk for book_chunk in read_book_chunk_files(isbn_chunk_files[isbn])]
         book_docs = [trankit_json_to_doc(book_chunk, skip_bad_tokens=True) for book_chunk in book_chunks]
         book_tense_aspects = classify_book_clauses(isbn, book_docs, pattern)
         df = pd.DataFrame(book_tense_aspects, columns=columns)
         df.to_csv(out_file, sep='\t', compression='gzip', index=False)
         # all_tense_aspects.extend(book_tense_aspects)
-    return all_tense_aspects
+    return None
 
 
 def classify_book_clauses(book_id: str, book_docs: List[Doc], pattern: PatternNL):
@@ -204,11 +205,15 @@ def classify_book_clauses(book_id: str, book_docs: List[Doc], pattern: PatternNL
     book_tense_aspects = []
     for di, doc in enumerate(book_docs):
         for si, sent in enumerate(doc.sentences):
-            for ci, clause in enumerate(pattern.get_verb_clauses(sent)):
-                tense = classify_clause_tense(clause, pattern)
-                aspect = classify_clause_aspect(clause, pattern)
-                row = [book_id, di, si, ci, tense, aspect]
-                book_tense_aspects.append(row)
+            try:
+                for ci, clause in enumerate(pattern.get_verb_clauses(sent)):
+                    tense = classify_clause_tense(clause, pattern)
+                    aspect = classify_clause_aspect(clause, pattern)
+                    row = [book_id, di, si, ci, tense, aspect]
+                    book_tense_aspects.append(row)
+            except RecursionError:
+                # print(f"RecursionError for book {book_id}, doc {di}, sent {si}: {sent}")
+                raise
     return book_tense_aspects
 
 
@@ -363,12 +368,8 @@ def extract_tense_aspect_features(data_dir: str, out_dir: str, lang: str = 'nl',
 
     print("1 - load book docs")
     isbn_chunk_files = load_book_chunks(data_dir, max_items=max_items)
-    print("2 - get all book stats")
-    all_tense_aspects = get_all_book_tense_aspects(isbn_chunk_files, out_dir, lang)
-    print("3 - assign name columns")
-    columns = ['book_id', 'chunk_num', 'sent_num', 'clause_num', 'tense', 'aspects']
-    print("4 - save dataframe")
-    return pd.DataFrame(all_tense_aspects, columns=columns)
+    print("2 - get all book tense aspect info")
+    get_all_book_tense_aspects(isbn_chunk_files, out_dir, lang)
 
 
 def extract_text_features(data_dir: str, lang: str = 'nl', max_items: int = None) -> pd.DataFrame:
