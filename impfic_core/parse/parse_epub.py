@@ -8,8 +8,8 @@ import ebooklib
 from ebooklib import epub as lib_epub
 from bs4 import BeautifulSoup
 
-from book_model import ElementType, BookItem, BookContent
-from book_model import TextElement, TableCell, TableElement, TableRow
+from impfic_core.parse.book_model import ElementType, BookItem, BookContent
+from impfic_core.parse.book_model import TextElement, TableCell, TableElement, TableRow
 
 HEADER_ELEMENTS = {'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8'}
 TEXT_ELEMENTS = {
