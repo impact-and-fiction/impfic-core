@@ -23,7 +23,7 @@ element_type_inverse_map = {element_type_map[key]: key for key in element_type_m
 
 class BookElement:
 
-    def __init__(self, element_id: str, element_type: ElementType, name: Union[str, None]):
+    def __init__(self, element_id: str, element_type: Union[ElementType, str], name: Union[str, None]):
         self.element_id = element_id
         self.name = name
         self.element_type = element_type
@@ -72,7 +72,7 @@ class TextElement(BookElement):
     def from_json(json_data: Dict[str, any]):
         ele_type = element_type_inverse_map[json_data['element_type']]
         return TextElement(element_id=json_data['element_id'],
-                           element_type=ele_type, name=json_data['name'],
+                           element_type=element_type_inverse_map[json_data['element_type']], name=json_data['name'],
                            text=json_data['text'], parsed_text=json_data['parsed_text'])
 
 
