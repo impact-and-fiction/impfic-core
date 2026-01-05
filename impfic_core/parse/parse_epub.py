@@ -8,17 +8,17 @@ import ebooklib
 from ebooklib import epub as lib_epub
 from bs4 import BeautifulSoup
 
-from book_model import ElementType, BookItem, BookContent
-from book_model import TextElement, TableCell, TableElement, TableRow
+from impfic_core.parse.book_model import ElementType, BookItem, BookContent
+from impfic_core.parse.book_model import TextElement, TableCell, TableElement, TableRow
 
-HEADER_ELEMENTS = {'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8'}
+HEADER_ELEMENTS = {'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'header'}
 TEXT_ELEMENTS = {
-    'p', 'span', 'b', 'i', 'em', 'li', 'br', 'blockquote',
+    'p', 'span', 'b', 'i', 'em', 'li', 'strong', 'br', 'blockquote',
     'a', 'big', 'dd', 'dt', 'sup', 'sub',
 }
 TABLE_ELEMENTS = {'table', 'tbody', 'tr', 'td', 'th'}
-OTHER_ELEMENTS = {'svg', 'img', 'hr', 'style', 'g', 'ncx'}
-METADATA_ELEMENTS = {'small', 'pre', 'center'}
+OTHER_ELEMENTS = {'svg', 'img', 'hr', 'style', 'g', 'ncx', 'figcaption', 'figure', 'script'}
+METADATA_ELEMENTS = {'small', 'pre', 'center', 'nav'}
 LIST_ELEMENTS = {
     'div', 'ol', 'ul', 'dl', 'font',
     #
@@ -59,7 +59,7 @@ def make_element(element_id: str, child, text: str = None):
         else:
             book_element = TextElement(element_id=element_id, element_type=ElementType.TEXT,
                                        name=child.name, text=child.text)
-        print(f"WARNING - Unknown element type: '{child.name}':\n{child}")
+        logging.warning(f"Unknown element type: '{child.name}':\n{child}")
         # book_element = BookElement(element_id=element_id, element_type=ElementType.OTHER,
         #                            name=child.name)
 
@@ -87,16 +87,6 @@ def make_table_element(table, element_id, debug: int = 0):
             row_type = 'data'
             if debug > 0:
                 print(f'number of cells: {Counter(cell_names)}')
-        """
-        cells = [cell for cell in cells if len(cell.find_all('td')) == 0]
-        if debug > 0:
-            print(f'number of non-overlapping cells: {len(cells)}')
-            for cell in cells:
-                print(f"\tcell.text: {cell.text}")
-        cells = [cell for cell in cells if cell not in done_cells]
-        if debug > 0:
-            print(f'number of not-done cell cells: {len(cells)}')
-        """
         table_cells = []
         for cell in cells:
             if isinstance(cell, str):
@@ -182,8 +172,8 @@ def get_book_items(book: lib_epub.EpubBook, book_id: str = None):
             diff = abs(body_len - book_item.text_length)
             rel_diff = diff / body_len
             if rel_diff > 0.5:
-                print(f"\titem {item_id} ({item.get_name()})\tbody: {item_body}")
-                raise ValueError(f"diff: {diff} ({rel_diff: >.3f})\tlen(item_body.text): {body_len}\t"
+                logging.warning(f"\titem {item_id} ({item.get_name()})\tbody: {item_body}")
+                raise ValueError(f"diff: {diff} ({rel_diff: >.3f})  len(item_body.text): {body_len: >8}  "
                                  f"book_item.length: {book_item.text_length}")
     return book_items
 
@@ -213,7 +203,7 @@ def get_book(epub_file: str, error_skip_log_file: str):
     if 'identifier' in metadata:
         book_id = metadata['identifier']
     else:
-        print(f"no 'identifier' in metadata of epub file {epub_file}")
+        logging.error(f"no 'identifier' in metadata of epub file {epub_file}")
         book_id = None
     if book_id is None:
         _, filename = os.path.split(epub_file)
@@ -221,7 +211,7 @@ def get_book(epub_file: str, error_skip_log_file: str):
     try:
         book_items = get_book_items(epub, book_id)
     except (TypeError, ValueError) as err:
-        print(f"WARNING - Error getting book items from {epub_file}")
+        logging.error(f"Error getting book items from {epub_file}")
         write_unparsable(epub_file, err, error_skip_log_file)
         return None
     return BookContent(book_id, book_items=book_items, metadata=metadata)
@@ -238,6 +228,7 @@ def read_unparsable_log(log_file: str):
         # first line is header
         next(fh)
         for line in fh:
+            print(f"unparsable log header: {line}")
             epub_file, _ = line.strip('\n').split('\t')
             unparsable.append(epub_file)
     return unparsable
@@ -250,8 +241,9 @@ def write_unparsable(epub_file: str, err: BaseException, log_file):
 
 
 def main(epub_dir: str, json_dir: str, error_skip_log_file: str):
-    epub_files = glob.glob(os.path.join(epub_dir, '**/**/**/*.epub'))
+    epub_files = glob.glob(os.path.join(epub_dir, '**/*.epub'))
     print(f"number of epub files: {len(epub_files)}")
+    logging.info(f"number of epub files: {len(epub_files)}")
     error_skip_files = read_unparsable_log(error_skip_log_file)
     for ei, epub_file in enumerate(epub_files):
         base_name = os.path.split(epub_file)[-1]
@@ -263,16 +255,33 @@ def main(epub_dir: str, json_dir: str, error_skip_log_file: str):
         book_content = get_book(epub_file, error_skip_log_file)
         if book_content is None:
             error_skip_files.append(epub_file)
-            print(f"No book_content for {epub_file}")
+            logging.error(f"No book_content for {epub_file}")
         else:
             with gzip.open(json_file, 'wt') as fh:
                 fh.write(json.dumps(book_content.json))
-        if (ei + 1) % 10 == 0:
+        if (ei + 1) % 100 == 0:
             print(f"{ei + 1} of {len(epub_files)} epubs processed")
+            logging.info(f"{ei + 1} of {len(epub_files)} epubs processed")
 
 
 if __name__ == "__main__":
+    import datetime
+    today = datetime.date.today().isoformat()
+    import logging.config
+    logging.config.dictConfig({
+        'version': 1,
+        # Other configs ...
+        'filename': f'../../parsing_epubs-{today}.log',
+        'disable_existing_loggers': True
+    })
+
+    logging.basicConfig(format='%(asctime)s %(message)s',
+                        filename=f'../../parsing_epubs-{today}.log',
+                        #encoding='utf-8',
+                        level=logging.DEBUG)
+
     unparsable_file = '../../../data/books/unparsable_epubs.tsv'
     input_dir = '../../../data/books/epub/'
     output_dir = '../../../data/books/epub_json/'
     main(input_dir, output_dir, unparsable_file)
+
