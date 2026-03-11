@@ -1,7 +1,7 @@
 import gzip
 import json
 from pathlib import Path
-from typing import Union
+from typing import Callable, Union
 
 import impfic_core.parse.parse_trankit_sentence as parse_trankit_sentence
 import impfic_core.pattern.tag_sets_en as tag_sets_en
@@ -21,7 +21,13 @@ def load_book(book_file: Union[str, Path]) -> book_model.BookContent:
         return book_model.BookContent.from_json(book_json)
 
 
-def get_book_tokens(book_content: Union[book_model.BookContent, book_model.BookItem]):
+def get_book_tokens(book_content: Union[book_model.BookContent, book_model.BookItem], tokenizer: Callable=None):
+    """
+
+    :param book_content: a BookContent or BookItem from the impfic_core.parse.book_model module
+    :param tokenizer: a tokenizer function that takes a string and returns a list of tokens
+    :return: a list of tokens
+    """
     tokens = []
     if isinstance(book_content, book_model.BookContent) or isinstance(book_content, book_model.BookItem):
         content_elements = book_content.content_elements
@@ -30,9 +36,12 @@ def get_book_tokens(book_content: Union[book_model.BookContent, book_model.BookI
     else:
         content_elements = []
     for ele in content_elements:
-        if ele.parsed_text is None:
+        if ele.parsed_text is not None:
+            ele_tokens = [token for sent in ele.parsed_text['sentences'] for token in sent['tokens']]
+        elif ele.text is not None:
+            ele_tokens = tokenizer(ele.text)
+        else:
             continue
-        ele_tokens = [token for sent in ele.parsed_text['sentences'] for token in sent['tokens']]
         tokens.extend(ele_tokens)
     return tokens
 
