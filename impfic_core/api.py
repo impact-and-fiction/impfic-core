@@ -1,11 +1,42 @@
-from impfic_core.pattern.patterns import Pattern
-from impfic_core.pattern.patterns_nl import PatternNL
+import gzip
+import json
+from pathlib import Path
+from typing import Union
+
+import impfic_core.parse.parse_trankit_sentence as parse_trankit_sentence
 import impfic_core.pattern.tag_sets_en as tag_sets_en
 import impfic_core.pattern.tag_sets_nl as tag_sets_nl
+from impfic_core.pattern.patterns import Pattern
+from impfic_core.pattern.patterns_nl import PatternNL
+from impfic_core.parse import book_model
 from impfic_core.parse.doc import json_to_doc
 from impfic_core.parse.doc import Clause, Doc, Sentence, Token
 from impfic_core.parse.chunk import read_chunk_file
-import impfic_core.parse.parse_trankit_sentence as parse_trankit_sentence
+
+
+def load_book(book_file: Union[str, Path]) -> book_model.BookContent:
+    open_func = gzip.open if str(book_file).endswith('.gz') else open
+    with open_func(book_file, 'rt') as fh:
+        book_json = json.load(fh)
+        return book_model.BookContent.from_json(book_json)
+
+
+def get_book_tokens(book_content: Union[book_model.BookContent, book_model.BookItem]):
+    tokens = []
+    if isinstance(book_content, book_model.BookContent) or isinstance(book_content, book_model.BookItem):
+        content_elements = book_content.content_elements
+    elif isinstance(book_content, book_model.TextElement):
+        content_elements = [book_content]
+    else:
+        content_elements = []
+    for ele in content_elements:
+        if ele.parsed_text is None:
+            continue
+        ele_tokens = [token for sent in ele.parsed_text['sentences'] for token in sent['tokens']]
+        tokens.extend(ele_tokens)
+    return tokens
+
+
 
 
 def get_lang_patterns(lang: str, tag_set_name: str = None):

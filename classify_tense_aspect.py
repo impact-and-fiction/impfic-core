@@ -6,15 +6,9 @@ from typing import List
 
 import impfic_core.measures.text_features as text_features
 import pandas as pd
-from impfic_core.api import Pattern, PatternNL, get_lang_patterns
-from impfic_core.parse import book_model
+from impfic_core.api import Pattern, PatternNL, get_lang_patterns, load_book
 from tqdm import tqdm
 
-
-def load_book(book_file: str) -> book_model.BookContent:
-    with gzip.open(book_file, 'rt') as fh:
-        book_json = json.load(fh)
-        return book_model.BookContent.from_json(book_json)
 
 
 def get_all_book_tense_aspects(book_files: List[Path], out_dir: Path, lang: str):
