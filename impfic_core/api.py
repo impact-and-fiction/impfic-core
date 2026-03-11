@@ -38,10 +38,12 @@ def get_book_tokens(book_content: Union[book_model.BookContent, book_model.BookI
     for ele in content_elements:
         if ele.parsed_text is not None:
             ele_tokens = [token for sent in ele.parsed_text['sentences'] for token in sent['tokens']]
-        elif ele.text is not None:
+        elif ele.text.strip() == '':
+            ele_tokens = []
+        elif tokenizer and ele.text is not None:
             ele_tokens = tokenizer(ele.text)
         else:
-            continue
+            ele_tokens = [token for token in ele.text.split() if token != '']
         tokens.extend(ele_tokens)
     return tokens
 
